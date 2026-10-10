@@ -113,9 +113,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const data = event.data as { machine_name?: string };
         pushToast({
           title: "It's your turn!",
-          body: `${data.machine_name ?? "A machine"} is ready for you. Check in before the grace period ends.`,
+          body: `${data.machine_name ?? "A machine"} is ready for you. Head over: the camera checks you in automatically.`,
           variant: "success",
         });
+        break;
+      }
+      case "checked_in": {
+        pushToast({ title: "Checked in", body: "You're on the machine. Have a good set!", variant: "success" });
         break;
       }
       case "removed_from_queue": {

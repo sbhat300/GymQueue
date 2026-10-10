@@ -48,3 +48,6 @@ async def _create_indexes(db: AsyncIOMotorDatabase) -> None:
 
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.notifications.create_index([("user_id", 1), ("read_at", 1)])
+
+    await db.machine_samples.create_index([("machine_id", 1), ("at", 1)])
+    await db.machine_samples.create_index("at", expireAfterSeconds=90 * 24 * 3600, name="samples_ttl")

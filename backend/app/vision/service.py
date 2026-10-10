@@ -3,6 +3,7 @@ trigger by tapping a button, so check-in/rest-return/finish can happen automatic
 once the camera recognises someone. See vision/README.md for the event contract.
 """
 import logging
+import time
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -15,6 +16,18 @@ from app.vision.schemas import VisionEvent
 from app.ws.manager import ConnectionManager
 
 log = logging.getLogger(__name__)
+
+CAMERA_STALE_SECONDS = 30
+# machine_id -> (monotonic time of last heartbeat, people on camera incl. unrecognised walk-ins)
+_last_heartbeat: dict[str, tuple[float, int]] = {}
+
+
+def people_on_camera(machine_id: str) -> int | None:
+    """How many people a machine's camera sees right now (busy times); None if no live camera."""
+    seen = _last_heartbeat.get(machine_id)
+    if seen is None or time.monotonic() - seen[0] > CAMERA_STALE_SECONDS:
+        return None
+    return seen[1]
 
 
 def _try_oid(value: str) -> ObjectId | None:
@@ -62,6 +75,9 @@ _HANDLERS = {
 
 
 async def handle_vision_event(db, manager: ConnectionManager, event: VisionEvent) -> None:
+    if event.type == "heartbeat":
+        people = len(getattr(event, "present_user_ids", None) or []) + int(getattr(event, "unknown_faces", 0) or 0)
+        _last_heartbeat[event.machine_id] = (time.monotonic(), people)
     handler = _HANDLERS.get(event.type)
     if handler is None:
         return  # rest_started, rest_expired, unknown_face, camera_online/offline, heartbeat: informational only

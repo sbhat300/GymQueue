@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     vision_api_key: str = ""              # sent to vision's command API (== vision's own VISION_API_KEY)
     vision_events_api_key: str = ""       # expected on inbound events from vision (== vision's BACKEND_API_KEY)
 
+    # ---- busy times / estimated wait ----
+    gym_timezone: str = "America/New_York"
+    stats_sample_interval_seconds: float = 60.0
+    stats_history_days: int = 28
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]

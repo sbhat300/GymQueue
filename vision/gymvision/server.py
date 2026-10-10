@@ -288,7 +288,7 @@ def delete_face(user_id: str):
 def main():
     import uvicorn
     # open /stream tabs never finish on their own, so don't wait on them at Ctrl+C
-    uvicorn.run(app, host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", "8000")),
+    uvicorn.run(app, host=os.getenv("HOST", "0.0.0.0"), port=int(os.getenv("PORT", "8001")),
                 timeout_graceful_shutdown=2)
 
 

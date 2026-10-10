@@ -10,6 +10,9 @@
   --warning: #d97706;
   --danger: #dc2626;
   --radius: 10px;
+  --chart-bar: #7ea2ee;      /* other hours; checked against --surface */
+  --chart-bar-now: #2563eb;  /* current hour */
+  --chart-grid: #e3e5e9;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color-scheme: light dark;
 }
@@ -21,6 +24,9 @@
     --text: #e9eaec;
     --text-muted: #9aa0ab;
     --border: #2b2f38;
+    --chart-bar: #3a5aa3;
+    --chart-bar-now: #6f9bf2;
+    --chart-grid: #2b2f38;
   }
 }
 
@@ -323,4 +329,215 @@ h1, h2, h3 {
   text-align: center;
   padding: 40px 0;
   color: var(--text-muted);
+}
+
+/* ---------- right-now stats ---------- */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.stat-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.wait-chip {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-row-end {
+  text-align: right;
+}
+
+/* ---------- busy times chart ---------- */
+.busy-chart {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.day-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+
+.day-tab {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 0;
+  border-radius: 999px;
+}
+
+.day-tab.is-selected {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.busy-headline {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.busy-plot {
+  position: relative;
+  min-height: 162px;
+}
+
+.busy-plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.busy-grid {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.busy-axis {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.busy-bar {
+  fill: var(--chart-bar);
+  transition: opacity 0.1s;
+}
+
+.busy-bar.is-now {
+  fill: var(--chart-bar-now);
+}
+
+.busy-bar.is-hovered {
+  opacity: 0.75;
+}
+
+.busy-hit {
+  fill: transparent;
+  outline: none;
+}
+
+.busy-hit:focus-visible {
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.busy-empty {
+  position: absolute;
+  inset: 0 0 22px 34px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+}
+
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.chart-tooltip span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.busy-footnote {
+  margin-top: 10px;
+}
+
+.busy-table {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.busy-table summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.busy-table table {
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.busy-table th,
+.busy-table td {
+  text-align: left;
+  padding: 3px 16px 3px 0;
+}
+
+.busy-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.status-text {
+  color: var(--text);
+}
+
+.status-free {
+  color: var(--success);
+}
+
+@media (max-width: 480px) {
+  .stat-row {
+    gap: 8px;
+  }
+  .stat {
+    padding: 10px;
+  }
+  .stat-value {
+    font-size: 17px;
+  }
 }

@@ -3,14 +3,19 @@ import { Link, useParams } from "react-router-dom";
 import { getMachine } from "../api/machines";
 import { getQueue, joinQueue, leaveQueue } from "../api/queue";
 import { createJoinRequest } from "../api/joinRequests";
+import { getMachineStats } from "../api/stats";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationContext";
 import { ApiError } from "../api/client";
-import type { Machine, QueueEntry, QueueState, WsEvent } from "../types";
+import type { Machine, MachineStats, QueueEntry, QueueState, WsEvent } from "../types";
 import { QueueEntryRow } from "../components/QueueEntryRow";
 import { CheckInPanel } from "../components/CheckInPanel";
 import { RestControls } from "../components/RestControls";
 import { JoinRequestModal } from "../components/JoinRequestModal";
+import { BusyTimesChart } from "../components/BusyTimesChart";
+import { formatWait } from "../utils/format";
+
+const STATS_REFRESH_MS = 30_000;
 
 const REFRESH_EVENT_TYPES = new Set([
   "queue_updated",
@@ -18,6 +23,7 @@ const REFRESH_EVENT_TYPES = new Set([
   "checked_in",
   "rest_started",
   "rest_expired",
+  "rest_returned",
   "session_ended",
   "removed_from_queue",
 ]);
@@ -30,6 +36,7 @@ export function MachineDetailPage() {
 
   const [machine, setMachine] = useState<Machine | null>(null);
   const [entries, setEntries] = useState<QueueEntry[] | null>(null);
+  const [stats, setStats] = useState<MachineStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
   const [joinRequestTarget, setJoinRequestTarget] = useState<{ entryId: string; name: string; state: QueueState } | null>(
@@ -39,7 +46,14 @@ export function MachineDetailPage() {
   const refresh = useCallback(() => {
     if (!machineId) return;
     getQueue(machineId).then(setEntries).catch(() => setError("Couldn't load the queue"));
+    // stats are a nice-to-have: keep showing the last ones if a refresh fails
+    getMachineStats(machineId).then(setStats).catch(() => {});
   }, [machineId]);
+
+  useEffect(() => {
+    const interval = setInterval(refresh, STATS_REFRESH_MS); // waits tick down even when nothing changes
+    return () => clearInterval(interval);
+  }, [refresh]);
 
   useEffect(() => {
     if (!machineId) return;
@@ -112,6 +126,8 @@ export function MachineDetailPage() {
       <h1>{machine?.name ?? "Machine"}</h1>
       {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
 
+      {stats && <RightNow stats={stats} myEntry={myEntry} />}
+
       {myEntry?.state === "grace" && <CheckInPanel entry={myEntry} />}
 
       {myEntry && (myEntry.state === "active" || myEntry.state === "resting") && machine && (
@@ -161,6 +177,7 @@ export function MachineDetailPage() {
             key={entry.id}
             entry={entry}
             currentUserId={user?.id}
+            estimatedWaitSeconds={stats?.entry_wait_seconds[entry.id]}
             onRequestJoin={
               canRequestJoin
                 ? () =>
@@ -175,6 +192,20 @@ export function MachineDetailPage() {
         );
       })}
 
+      {stats && (
+        <>
+          <h3 style={{ marginTop: 24 }}>Busy times</h3>
+          <BusyTimesChart
+            busyTimes={stats.busy_times}
+            localWeekday={stats.local_weekday}
+            localHour={stats.local_hour}
+            historyDays={stats.history_days}
+            includesDemoData={stats.includes_demo_data}
+            liveBusy={stats.in_use || stats.queue_length > 0}
+          />
+        </>
+      )}
+
       {joinRequestTarget && (
         <JoinRequestModal
           targetName={joinRequestTarget.name}
@@ -184,6 +215,45 @@ export function MachineDetailPage() {
           onCancel={() => setJoinRequestTarget(null)}
         />
       )}
+    </div>
+  );
+}
+
+function RightNow({ stats, myEntry }: { stats: MachineStats; myEntry: QueueEntry | null }) {
+  const myWait = myEntry ? stats.entry_wait_seconds[myEntry.id] : undefined;
+  let waitLabel = "Wait if you join";
+  let waitValue = stats.estimated_wait_seconds < 60 ? "No wait" : formatWait(stats.estimated_wait_seconds);
+  if (myWait !== undefined) {
+    waitLabel = "Your wait";
+    waitValue = myWait < 60 ? "Up next" : formatWait(myWait);
+  } else if (myEntry) {
+    waitLabel = "Your turn";
+    waitValue = "Now";
+  }
+  const typical = formatWait(stats.typical_session_seconds).replace("~", "");
+
+  return (
+    <div className="stat-row">
+      <div className="stat">
+        <div className="stat-label">Right now</div>
+        <div className="stat-value">{stats.in_use ? "In use" : "Free"}</div>
+        {stats.people_on_camera !== null && (
+          <div className="stat-note">
+            Camera: {stats.people_on_camera === 1 ? "1 person" : `${stats.people_on_camera} people`}
+          </div>
+        )}
+      </div>
+      <div className="stat">
+        <div className="stat-label">In line</div>
+        <div className="stat-value">{stats.queue_length}</div>
+      </div>
+      <div className="stat">
+        <div className="stat-label">{waitLabel}</div>
+        <div className="stat-value">{waitValue}</div>
+        <div className="stat-note">
+          Sessions {stats.typical_session_source === "history" ? "usually" : "typically"} last {typical}
+        </div>
+      </div>
     </div>
   );
 }

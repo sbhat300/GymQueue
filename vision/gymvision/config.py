@@ -45,11 +45,11 @@ class Settings:
     # --- presence (part 7) ---
     arrive_hits: int = field(default_factory=lambda: _i("ARRIVE_HITS", 3))
     arrive_window_s: float = field(default_factory=lambda: _f("ARRIVE_WINDOW_S", 4.0))
-    away_grace_s: float = field(default_factory=lambda: _f("AWAY_GRACE_S", 30.0))
+    away_grace_s: float = field(default_factory=lambda: _f("AWAY_GRACE_S", 15.0))
     rest_default_s: float = field(default_factory=lambda: _f("REST_DEFAULT_S", 120.0))
     max_rests: int = field(default_factory=lambda: _i("MAX_RESTS", 6))
     unknown_cooldown_s: float = field(default_factory=lambda: _f("UNKNOWN_COOLDOWN_S", 30.0))
-    heartbeat_s: float = field(default_factory=lambda: _f("HEARTBEAT_S", 5.0))
+    heartbeat_s: float = field(default_factory=lambda: _f("HEARTBEAT_S", 3.0))
     max_fps: float = field(default_factory=lambda: _f("MAX_FPS", 5.0))
 
     # --- storage ---

@@ -13,6 +13,8 @@ from app.machines.router import router as machines_router
 from app.notifications.router import router as notifications_router
 from app.queue.router import router as queue_router
 from app.scheduler.runner import scheduler_loop
+from app.stats.router import router as stats_router
+from app.stats.service import sampler_loop
 from app.users.router import router as users_router
 from app.vision.enroll_router import router as vision_enroll_router
 from app.vision.router import router as vision_router
@@ -23,13 +25,17 @@ from app.ws.router import router as ws_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
-    task = asyncio.create_task(scheduler_loop(get_db(), manager, settings.scheduler_interval_seconds))
+    tasks = [
+        asyncio.create_task(scheduler_loop(get_db(), manager, settings.scheduler_interval_seconds)),
+        asyncio.create_task(sampler_loop(get_db(), settings.stats_sample_interval_seconds)),
+    ]
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    for task in tasks:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await close_db()
 
 
@@ -53,6 +59,7 @@ app.include_router(notifications_router)
 app.include_router(vision_router)
 app.include_router(vision_enroll_router)
 app.include_router(ws_router)
+app.include_router(stats_router)
 
 
 @app.get("/health")

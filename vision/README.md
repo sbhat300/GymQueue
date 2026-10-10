@@ -1,46 +1,71 @@
 # Gym vision service
 
-Face scan at signup, face recognition at each machine, and presence/rest tracking with
-grace periods. Runs on the laptop's CPU (InsightFace / ArcFace). Cameras are Freenove ESP32-S3 camera boards on
-a phone hotspot, or the laptop webcam until those arrive.
+Face scan, face recognition at each machine, and presence tracking. It drives the GymQueue
+queue automatically: the app has no Check in / Finish / I'm back buttons, the camera does it.
+Runs on the laptop's CPU (InsightFace / ArcFace). Cameras are Freenove ESP32-S3 boards on a
+phone hotspot, or the laptop webcam until those arrive.
 
 ```
-ESP32-CAM ──HTTP /capture──► vision service (this) ──POST /api/vision/events──► Next.js backend ──► Supabase
- (hotspot)                    detect → recognise →        (Bearer BACKEND_API_KEY)       (queue logic,
-                              track → presence/grace                                     notifications)
-signup page ──frames──► Next.js ──► /enroll/* (this) ──embeddings──► Supabase face_embeddings
-backend ──► /machines/{id}/rest   (approved rest → camera won't release the machine)
+ESP32 / webcam ──/capture──► vision service :8001 ──POST /api/vision/events──► GymQueue backend :8000 ──WebSocket──► app
+                             detect → recognise →        (Bearer key)            check in / finish /
+                             track → presence  ◄── rest / release / enroll ───    return from rest
 ```
 
-## Quick start (no ESP32 needed)
+## What the camera does in the app (`backend/app/vision/`)
+
+| camera reports | queue does |
+|---|---|
+| `user_arrived` while it's your turn (or you're in the end-of-use grace) | **checks you in / resumes your turn** |
+| `user_left` (unseen for `AWAY_GRACE_S`, 15 s) while active | **finishes your turn**: end-of-use grace starts |
+| `rest_ended` with reason `returned` | **ends your rest** |
+| `heartbeat` | head count on camera, used for **busy times** (walk-ins included) |
+
+The backend keeps the camera in sync: tapping **Rest** calls `POST /machines/{id}/rest` here (so
+walking off during a rest doesn't end your turn), and leaving the queue or a grace expiring
+calls `/release`. Face scan happens in the app after sign-up (`/setup-face`), proxied through
+the backend so a browser can only enroll its own account.
+
+## Run the whole thing (no ESP32 needed)
+
+Keys (any long random strings), matching pairs:
+
+| `backend/.env` | `vision/.env` |
+|---|---|
+| `VISION_URL=http://localhost:8001` | (`PORT=8001`, the default) |
+| `VISION_API_KEY=<key A>` | `VISION_API_KEY=<key A>` |
+| `VISION_EVENTS_API_KEY=<key B>` | `BACKEND_API_KEY=<key B>` |
 
 ```bash
-cd vision
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cp .env.example .env        # optional; defaults work for local testing
+# backend (needs MongoDB: `docker compose up -d` from the repo root)
+cd backend && .venv/bin/uvicorn app.main:app --port 8000
+cd frontend && npm run dev                  # needs frontend/.env (copy .env.example)
+cd vision && ./run.sh                       # vision service on :8001
 ```
+
+Sign up in the app; after choosing a name you're taken to the face scan. Then point a camera
+at a machine in `cameras.json` (machine ids: `PYTHONPATH= .venv/bin/python scripts/list_machines.py`):
+```json
+[{"machine_id": "<id>", "name": "Bench Press 1", "source": "webcam:0"}]
+```
+Restart `./run.sh`, join Bench Press 1's queue, and sit in front of the camera: you're
+checked in. Walk away and your turn wraps up ~15 s later.
+Annotated live view: http://localhost:8001/machines/<machine id>/stream
+
 The face model (~280 MB) downloads to `~/.insightface` on first use.
 
-1. **Enroll yourself** (opens a webcam window, guides you through 5 head poses):
-   ```bash
-   PYTHONPATH= .venv/bin/python scripts/enroll_cli.py --user-id me --name "Nishant"
-   ```
-2. **Watch recognition + presence live** (events print in the terminal):
-   ```bash
-   PYTHONPATH= .venv/bin/python scripts/live.py --source webcam:0 --grace 10
-   ```
-   Walk out of frame → `user_left` after 10 s. Press `r` to start a 20 s rest.
-3. **Run the full service** (uses `cameras.json`):
-   ```bash
-   ./run.sh
-   # open http://localhost:8000/machines/bench-1/stream  for the annotated live view
-   ```
+### Without the backend
+For tuning the camera on its own, `BACKEND_URL` can be left empty (events are only printed):
+```bash
+PYTHONPATH= .venv/bin/python scripts/enroll_cli.py --user-id me --name "Nishant"
+PYTHONPATH= .venv/bin/python scripts/live.py --source webcam:0 --grace 10
+```
+Walk out of frame → `user_left` after 10 s. Press `r` to start a 20 s rest.
 
 ### Test the ESP32 path before the board arrives
 `scripts/esp32_sim.py` serves the laptop webcam on the exact same endpoints as the firmware:
 ```bash
 PYTHONPATH= .venv/bin/python scripts/esp32_sim.py --source webcam:0 --port 8081
-# cameras.json: {"machine_id": "bench-1", "source": "esp32:http://127.0.0.1:8081"}
+# cameras.json: {"machine_id": "<machine id>", "source": "esp32:http://127.0.0.1:8081"}
 ```
 Run it on a second laptop on the hotspot to test over real Wi-Fi.
 
@@ -88,55 +113,52 @@ Per machine, every processed frame:
 - **tracking**: faces are followed frame-to-frame, so a recognised user stays recognised while
   turned away mid-set.
 - **leaving**: not seen for `AWAY_GRACE_S` → `user_left`.
-- **rest**: after the backend approves a rest, absence doesn't count until the rest ends;
-  then the normal grace period applies. Coming back early ends the rest. Max `MAX_RESTS` (6)
-  per session. Tapping "rest" while still in front of the camera does not cancel it.
+- **rest**: when the backend reports a rest (`POST /machines/{id}/rest`), absence doesn't count
+  until the rest ends; then the normal grace period applies. Coming back early sends
+  `rest_ended: returned`. Max `MAX_RESTS` (6) per session. Tapping "rest" while still in front
+  of the camera does not cancel it.
 - **unknown face** persistently at the machine → `unknown_face` (rate-limited).
 - **camera offline** → `camera_offline`; that time is *not* counted as the user being away.
 
-## Contract for the backend
+## Interface with the backend
 
 ### Events this service sends
-`POST {BACKEND_URL}/api/vision/events`, header `Authorization: Bearer {BACKEND_API_KEY}`,
-body `{"events": [...]}`. Every event has `id` (for de-duplication), `type`, `machine_id`,
-`ts` (unix seconds), and `at` (ISO-8601 UTC).
+`POST {BACKEND_URL}/api/vision/events`, header `Authorization: Bearer {BACKEND_API_KEY}`, body
+`{"events": [...]}`. `machine_id` and `user_id` are GymQueue (MongoDB) ids. Every event has
+`id`, `type`, `machine_id`, `ts` (unix seconds) and `at` (ISO-8601 UTC).
 
-| type | extra fields | suggested backend action |
+| type | extra fields | used by the backend for |
 |---|---|---|
-| `user_arrived` | `user_id`, `confidence` | if user is next/called → check in; otherwise → notify them "not your turn" (wrong person) |
-| `user_left` | `user_id`, `last_seen`, `was_resting` | end their session, release machine, notify next in queue |
-| `rest_started` | `user_id`, `rest_until`, `rests_used`, `rests_left` | show rest countdown |
-| `rest_ended` | `user_id`, `reason` (`returned`/`expired`/`cancelled`) | back to "in use" |
-| `rest_expired` | `user_id`, `grace_until` | notify user "rest over, come back" |
-| `unknown_face` | `count` | flag "unregistered person on machine" |
-| `camera_offline` / `camera_online` | `error` | show camera status |
-| `heartbeat` (every `HEARTBEAT_S`) | `users[]`, `present_user_ids`, `camera_online`, `fps` | optional: live "on camera" indicator |
+| `user_arrived` | `user_id`, `confidence` | check in / resume |
+| `user_left` | `user_id`, `last_seen`, `was_resting` | finish turn |
+| `rest_ended` | `user_id`, `reason` (`returned`/`expired`/`cancelled`) | `returned` = back from rest |
+| `heartbeat` (every `HEARTBEAT_S`) | `present_user_ids`, `unknown_faces`, `users[]`, `camera_online`, `fps` | busy-times head count |
+| `rest_started`, `rest_expired`, `unknown_face`, `camera_offline`/`camera_online` | | informational |
 
-Example:
-```json
-{"events": [{"id": "9f2c…", "type": "user_arrived", "machine_id": "bench-1",
-             "ts": 1791653118.7, "at": "2026-10-10T17:25:18Z", "user_id": "4b1e…", "confidence": 0.71}]}
-```
+`GET {BACKEND_URL}/api/vision/machines` (same key) lists machine ids for `cameras.json`.
 
-### Commands the backend can send here
+### This service's own API
 Auth: `Authorization: Bearer {VISION_API_KEY}` (or `X-API-Key`, or `?key=` for `<img>` tags).
+Empty `VISION_API_KEY` = open, for local dev.
 
 ```
-POST   /machines/{id}/rest     {"user_id": "...", "seconds": 120}   → rest_started | 409 limit reached / already resting
-DELETE /machines/{id}/rest     {"user_id": "..."}                   end rest early
-POST   /machines/{id}/release  {"user_id": "..."}                   user left the queue; forget them
-GET    /machines               status of every camera + who is present
+POST   /enroll/start           {"user_id": "..."}        guided face scan (the app's /setup-face page, via the backend)
+POST   /enroll/{sid}/frame     {"image": "data:image/jpeg;base64,..."}  → instruction, progress, done
+POST   /enroll/{sid}/finish    → stored | 409 face already registered | 400 incomplete
+POST   /machines/{id}/rest     {"user_id", "seconds"}   backend: user tapped Rest
+DELETE /machines/{id}/rest     {"user_id"}              backend: rest ended
+POST   /machines/{id}/release  {"user_id"}              backend: user's turn is over
+DELETE /faces/{user_id}        delete someone's face data
+GET    /machines               status of every camera + who is on camera
 GET    /machines/{id}/stream   annotated MJPEG (demo view)  ·  /frame.jpg single frame
 POST   /identify               image → [{user_id, score, bbox}]
 GET    /events/recent          last events (debugging)
 GET    /health                 no auth
 ```
 
-### Supabase table (owned by the DB side)
-With `FACE_STORE=supabase` this service reads/writes `face_embeddings` through PostgREST using
-the service-role key. It expects the columns `user_id`, `pose` (text), and `embedding`
-(`vector(512)` or `float8[]`), with `unique (user_id, pose)`. Turn RLS on with **no** client
-policies so only the service role can read biometric data.
+### Face storage
+Faces are stored in `data/faces.json` on the laptop running this service (git-ignored, since
+it's biometric data). `FACE_STORE=supabase` is also supported (see `gymvision/store.py`).
 
 ## Recognising people further away
 A face has to be roughly **25–35 px wide** in the frame to be recognised. What gets you there:

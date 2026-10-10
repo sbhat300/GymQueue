@@ -31,6 +31,7 @@ class MachineWorker:
         self.presence = PresenceTracker(cam.machine_id)
         self.lock = threading.Lock()  # guards self.presence (camera thread vs API requests)
         self.fps = 0.0
+        self.unknown_faces = 0   # unrecognised people in the latest frame (walk-ins count for busy times)
         self.offline_since: float | None = None
         self._jpeg: bytes | None = None
         self._jpeg_seq = 0
@@ -108,6 +109,7 @@ class MachineWorker:
                 unknown += 1
             else:
                 seen[uid] = max(seen.get(uid, 0.0), t.last_score)
+        self.unknown_faces = unknown
         with self.lock:
             events = self.presence.observe(now, seen, unknown)
         self.sink.emit(events)
@@ -119,6 +121,7 @@ class MachineWorker:
             users = self.presence.snapshot(now)
         return make_event("heartbeat", self.machine_id, now, users=users,
                           present_user_ids=[u["user_id"] for u in users if u["seconds_unseen"] < 2.0],
+                          unknown_faces=self.unknown_faces if self.offline_since is None else 0,
                           camera_online=self.offline_since is None, fps=round(self.fps, 1))
 
     def status(self) -> dict:

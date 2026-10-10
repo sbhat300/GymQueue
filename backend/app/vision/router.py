@@ -28,3 +28,11 @@ async def vision_events(batch: VisionEventBatch, db: AsyncIOMotorDatabase = Depe
     for event in batch.events:
         await handle_vision_event(db, manager, event)
     return {"received": len(batch.events)}
+
+
+@router.get("/machines", dependencies=[Depends(require_vision_key)])
+async def list_machines(db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Machine ids for the vision service's cameras.json (vision/scripts/list_machines.py)."""
+    campuses = {c["_id"]: c["name"] for c in await db.campuses.find().to_list(length=None)}
+    machines = await db.machines.find().sort([("campus_id", 1), ("name", 1)]).to_list(length=None)
+    return [{"id": str(m["_id"]), "name": m["name"], "campus": campuses.get(m["campus_id"])} for m in machines]

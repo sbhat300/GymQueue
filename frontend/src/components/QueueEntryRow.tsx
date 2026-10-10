@@ -1,4 +1,5 @@
 import type { QueueEntry } from "../types";
+import { formatWait } from "../utils/format";
 
 function stateLabel(entry: QueueEntry): string {
   if (entry.state === "grace") {
@@ -11,10 +12,12 @@ export function QueueEntryRow({
   entry,
   currentUserId,
   onRequestJoin,
+  estimatedWaitSeconds,
 }: {
   entry: QueueEntry;
   currentUserId?: string;
   onRequestJoin?: () => void;
+  estimatedWaitSeconds?: number;
 }) {
   const isMe = entry.users.some((u) => u.id === currentUserId);
   return (
@@ -36,7 +39,14 @@ export function QueueEntryRow({
         )}
         {onRequestJoin && <div className="card-subtitle">Tap to request to pair up</div>}
       </div>
-      <span className={`badge badge-${entry.state}`}>{stateLabel(entry)}</span>
+      <div className="card-row-end">
+        <span className={`badge badge-${entry.state}`}>{stateLabel(entry)}</span>
+        {estimatedWaitSeconds !== undefined && (
+          <div className="wait-chip" style={{ marginTop: 4 }}>
+            {estimatedWaitSeconds < 60 ? "up next" : `${formatWait(estimatedWaitSeconds)} wait`}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

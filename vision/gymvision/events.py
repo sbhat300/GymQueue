@@ -1,4 +1,4 @@
-"""Delivers presence events to the Next.js backend over authenticated HTTP.
+"""Delivers presence events to the GymQueue backend over authenticated HTTP.
 
 POST {BACKEND_URL}{BACKEND_EVENTS_PATH}
 Authorization: Bearer {BACKEND_API_KEY}
