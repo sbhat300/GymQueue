@@ -8,6 +8,7 @@ from pymongo.errors import DuplicateKeyError
 from app.config import settings
 from app.models.common import EventType, GraceReason, QueueState
 from app.notifications.service import broadcast_queue_updated, notify_users
+from app.vision import client as vision_client
 from app.ws.manager import ConnectionManager
 
 LIVE_STATE_VALUES = [s.value for s in (QueueState.WAITING, QueueState.GRACE, QueueState.ACTIVE, QueueState.RESTING)]
@@ -222,6 +223,8 @@ async def leave_queue(db, manager: ConnectionManager, entry_id: ObjectId, user_i
             EventType.REMOVED_FROM_QUEUE,
             {"machine_id": str(entry["machine_id"]), "queue_entry_id": str(entry_id), "reason": "left_voluntarily"},
         )
+        for uid in result["user_ids"]:
+            await vision_client.notify_release(str(entry["machine_id"]), str(uid))
         await release_machine_and_promote(db, manager, entry["machine_id"])
         await broadcast_queue_updated(manager, str(entry["machine_id"]))
         return result
@@ -244,6 +247,8 @@ async def leave_queue(db, manager: ConnectionManager, entry_id: ObjectId, user_i
             EventType.SESSION_ENDED,
             {"machine_id": str(entry["machine_id"]), "queue_entry_id": str(entry_id), "reason": "left_voluntarily"},
         )
+        for uid in result["user_ids"]:
+            await vision_client.notify_release(str(entry["machine_id"]), str(uid))
         await release_machine_and_promote(db, manager, entry["machine_id"])
         await broadcast_queue_updated(manager, str(entry["machine_id"]))
         return result
@@ -325,6 +330,7 @@ async def start_rest(db, manager: ConnectionManager, entry_id: ObjectId, user_id
             "max_rests": max_rests,
         },
     )
+    await vision_client.notify_rest_started(str(entry["machine_id"]), str(user_id), rest_seconds)
     await broadcast_queue_updated(manager, str(entry["machine_id"]))
     return result
 
@@ -354,6 +360,7 @@ async def return_from_rest(db, manager: ConnectionManager, entry_id: ObjectId, u
         EventType.REST_RETURNED,
         {"machine_id": str(entry["machine_id"]), "queue_entry_id": str(entry_id)},
     )
+    await vision_client.notify_rest_ended(str(entry["machine_id"]), str(user_id))
     await broadcast_queue_updated(manager, str(entry["machine_id"]))
     return result
 

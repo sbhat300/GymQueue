@@ -14,6 +14,8 @@ from app.notifications.router import router as notifications_router
 from app.queue.router import router as queue_router
 from app.scheduler.runner import scheduler_loop
 from app.users.router import router as users_router
+from app.vision.enroll_router import router as vision_enroll_router
+from app.vision.router import router as vision_router
 from app.ws.manager import manager
 from app.ws.router import router as ws_router
 
@@ -48,6 +50,8 @@ app.include_router(machines_router)
 app.include_router(queue_router)
 app.include_router(join_requests_router)
 app.include_router(notifications_router)
+app.include_router(vision_router)
+app.include_router(vision_enroll_router)
 app.include_router(ws_router)
 
 

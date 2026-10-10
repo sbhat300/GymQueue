@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { returnFromRest, startRest } from "../api/queue";
+import { startRest } from "../api/queue";
 import { useCountdown } from "../hooks/useCountdown";
 import type { QueueEntry } from "../types";
 import { ApiError } from "../api/client";
@@ -31,25 +31,14 @@ export function RestControls({
     }
   }
 
-  async function handleReturn() {
-    setSubmitting(true);
-    try {
-      onUpdated(await returnFromRest(machineId, entry.id));
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Couldn't return from rest");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   if (entry.state === "resting") {
     return (
       <div className="panel">
         <div className="panel-title">Resting</div>
         <p className="countdown">{restSecondsLeft}s left before your spot wraps up</p>
-        <button className="btn btn-primary" onClick={handleReturn} disabled={submitting}>
-          I'm back
-        </button>
+        <p className="muted" style={{ marginTop: -4 }}>
+          Walk back into the camera's view and we'll resume your turn automatically.
+        </p>
       </div>
     );
   }

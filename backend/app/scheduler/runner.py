@@ -8,6 +8,7 @@ from app.config import settings
 from app.models.common import EventType, GraceReason, QueueState
 from app.notifications.service import broadcast_queue_updated, notify_users
 from app.queue.service import release_machine_and_promote
+from app.vision import client as vision_client
 from app.ws.manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,8 @@ async def _scan_turn_start_grace(db, manager: ConnectionManager) -> None:
             EventType.REMOVED_FROM_QUEUE,
             {"machine_id": str(entry["machine_id"]), "queue_entry_id": str(entry["_id"]), "reason": "grace_expired"},
         )
+        for uid in result["user_ids"]:
+            await vision_client.notify_release(str(entry["machine_id"]), str(uid))
         await broadcast_queue_updated(manager, str(entry["machine_id"]))
         await release_machine_and_promote(db, manager, entry["machine_id"])
 
@@ -116,5 +119,7 @@ async def _scan_end_of_use_grace(db, manager: ConnectionManager) -> None:
             EventType.SESSION_ENDED,
             {"machine_id": str(entry["machine_id"]), "queue_entry_id": str(entry["_id"]), "reason": "grace_expired"},
         )
+        for uid in result["user_ids"]:
+            await vision_client.notify_release(str(entry["machine_id"]), str(uid))
         await broadcast_queue_updated(manager, str(entry["machine_id"]))
         await release_machine_and_promote(db, manager, entry["machine_id"])

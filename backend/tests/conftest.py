@@ -5,6 +5,11 @@ os.environ.setdefault("MONGODB_DB_NAME", "gymqueue_test")
 os.environ.setdefault("DEFAULT_GRACE_PERIOD_SECONDS", "2")
 os.environ.setdefault("DEFAULT_REST_PERIOD_SECONDS", "2")
 os.environ.setdefault("SCHEDULER_INTERVAL_SECONDS", "0.5")
+# Tests exercise the vision integration via direct calls/mocks, not a real vision
+# service or its keys - keep them blank regardless of the developer's local .env.
+os.environ["VISION_URL"] = ""
+os.environ["VISION_API_KEY"] = ""
+os.environ["VISION_EVENTS_API_KEY"] = ""
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

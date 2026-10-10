@@ -11,4 +11,5 @@ def user_to_public(doc: dict) -> dict:
         "netid": doc["netid"],
         "display_name": doc.get("display_name"),
         "onboarding_complete": doc.get("onboarding_complete", False),
+        "face_enrolled": doc.get("face_enrolled", False),
     }

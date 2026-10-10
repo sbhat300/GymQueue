@@ -1,1 +1,13 @@
-[{"machine_id": "bench-1", "name": "Bench Press 1", "source": "esp32:http://127.0.0.1:8081"}]
+[
+  {"machine_id": "6aca76094c8f7df6ea60b90a", "name": "Squat Rack 1", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b90c", "name": "Squat Rack 2", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b90e", "name": "Bench Press 1", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b910", "name": "Bench Press 2", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b912", "name": "Treadmill 1", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b914", "name": "Lat Pulldown", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b916", "name": "Squat Rack A", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b918", "name": "Bench Press A", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b91a", "name": "Leg Press", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b91c", "name": "Rowing Machine 1", "source": "esp32:http://127.0.0.1:8081"},
+  {"machine_id": "6aca76094c8f7df6ea60b91e", "name": "Cable Crossover", "source": "esp32:http://127.0.0.1:8081"}
+]

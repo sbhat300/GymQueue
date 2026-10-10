@@ -3,6 +3,7 @@ export interface User {
   netid: string;
   display_name: string | null;
   onboarding_complete: boolean;
+  face_enrolled: boolean;
 }
 
 export interface Campus {

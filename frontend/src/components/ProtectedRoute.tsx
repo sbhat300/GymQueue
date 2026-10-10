@@ -13,3 +13,9 @@ export function RequireOnboarded() {
   if (user && !user.onboarding_complete) return <Navigate to="/setup-name" replace />;
   return <Outlet />;
 }
+
+export function RequireFaceEnrolled() {
+  const { user } = useAuth();
+  if (user && !user.face_enrolled) return <Navigate to="/setup-face" replace />;
+  return <Outlet />;
+}

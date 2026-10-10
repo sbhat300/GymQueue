@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getMachine } from "../api/machines";
-import { finishTurn, getQueue, joinQueue, leaveQueue } from "../api/queue";
+import { getQueue, joinQueue, leaveQueue } from "../api/queue";
 import { createJoinRequest } from "../api/joinRequests";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationContext";
@@ -90,11 +90,6 @@ export function MachineDetailPage() {
     runAction(() => leaveQueue(machineId, myEntry.id));
   }
 
-  function handleFinish() {
-    if (!myEntry) return;
-    runAction(() => finishTurn(machineId, myEntry.id));
-  }
-
   async function confirmJoinRequest() {
     if (!joinRequestTarget) return;
     setActionPending(true);
@@ -117,9 +112,7 @@ export function MachineDetailPage() {
       <h1>{machine?.name ?? "Machine"}</h1>
       {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
 
-      {myEntry?.state === "grace" && (
-        <CheckInPanel machineId={machineId} entry={myEntry} onUpdated={refresh} onError={setError} />
-      )}
+      {myEntry?.state === "grace" && <CheckInPanel entry={myEntry} />}
 
       {myEntry && (myEntry.state === "active" || myEntry.state === "resting") && machine && (
         <RestControls
@@ -138,15 +131,16 @@ export function MachineDetailPage() {
         </div>
       )}
 
+      {myEntry && (myEntry.state === "active" || myEntry.state === "resting") && (
+        <p className="muted" style={{ marginTop: -8, marginBottom: 12 }}>
+          Walking away from the camera for a while automatically wraps up your turn.
+        </p>
+      )}
+
       <div className="btn-row" style={{ marginBottom: 20 }}>
         {!myEntry && (
           <button className="btn btn-primary" onClick={handleJoin} disabled={actionPending}>
             Join queue
-          </button>
-        )}
-        {myEntry && (myEntry.state === "active" || myEntry.state === "resting") && (
-          <button className="btn" onClick={handleFinish} disabled={actionPending}>
-            Finish turn
           </button>
         )}
         {myEntry && (

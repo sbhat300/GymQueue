@@ -11,8 +11,12 @@ export function SetupNamePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Only bounce on arrival if already onboarded (e.g. back button) - not a dependency
+    // on `user`, since our own submit below also sets onboarding_complete and should
+    // go to /setup-face, not race this effect to "/".
     if (user?.onboarding_complete) navigate("/", { replace: true });
-  }, [user, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -20,7 +24,7 @@ export function SetupNamePage() {
     setSubmitting(true);
     try {
       await setProfile(displayName.trim());
-      navigate("/");
+      navigate("/setup-face");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong");
     } finally {

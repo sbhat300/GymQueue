@@ -19,6 +19,11 @@ class Settings(BaseSettings):
 
     cors_allowed_origins: str = "http://localhost:5173"
 
+    # ---- vision service integration ----
+    vision_url: str = ""                  # base URL of the vision service, e.g. http://localhost:8001
+    vision_api_key: str = ""              # sent to vision's command API (== vision's own VISION_API_KEY)
+    vision_events_api_key: str = ""       # expected on inbound events from vision (== vision's BACKEND_API_KEY)
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]

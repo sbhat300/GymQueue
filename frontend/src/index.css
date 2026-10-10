@@ -291,6 +291,34 @@ h1, h2, h3 {
   line-height: 1;
 }
 
+.face-scan-frame {
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  margin-bottom: 12px;
+}
+
+.face-scan-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
 .empty-state {
   text-align: center;
   padding: 40px 0;
