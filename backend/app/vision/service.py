@@ -10,7 +10,8 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import HTTPException
 
-from app.models.common import QueueState
+from app.models.common import EventType, QueueState
+from app.notifications.service import notify_users
 from app.queue import service as queue_service
 from app.queue.service import LIVE_STATE_VALUES
 from app.vision.schemas import VisionEvent
@@ -81,11 +82,29 @@ async def _find_live_entry(db, user_id: ObjectId, machine_id: ObjectId) -> dict 
     return entry
 
 
+async def _notify_wrong_machine(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, reason: str) -> None:
+    machine = await db.machines.find_one({"_id": machine_id})
+    await notify_users(
+        db,
+        manager,
+        [str(user_id)],
+        EventType.NOT_YOUR_MACHINE,
+        {"machine_id": str(machine_id), "machine_name": machine["name"] if machine else None, "reason": reason},
+    )
+
+
 async def _on_user_arrived(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
     entry = await _find_live_entry(db, user_id, machine_id)
-    if entry is None or entry["state"] != QueueState.GRACE.value:
-        return  # not their turn yet, or already active - nothing to do
-    await queue_service.check_in(db, manager, entry["_id"], user_id)
+    if entry is not None and entry["state"] == QueueState.GRACE.value:
+        await queue_service.check_in(db, manager, entry["_id"], user_id)
+        return
+    if event.type != "user_arrived":
+        return  # heartbeat catch-up only checks people in - warning here would repeat every heartbeat
+    if entry is None:
+        await _notify_wrong_machine(db, manager, user_id, machine_id, "not_queued")
+    elif entry["state"] == QueueState.WAITING.value:
+        await _notify_wrong_machine(db, manager, user_id, machine_id, "not_your_turn")
+    # ACTIVE/RESTING here just means a re-recognition of the machine's current owner - fine
 
 
 async def _on_user_left(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
