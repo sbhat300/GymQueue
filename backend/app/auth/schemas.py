@@ -16,6 +16,7 @@ class UserPublic(BaseModel):
     netid: str
     display_name: str | None
     onboarding_complete: bool
+    face_enrolled: bool
 
 
 class TokenResponse(BaseModel):
