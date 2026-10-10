@@ -947,3 +947,169 @@ h3 {
     box-shadow: none;
   }
 }
+
+/* ---------- face ID-style scan ---------- */
+.faceid-page {
+  max-width: 460px;
+  text-align: center;
+}
+
+.faceid {
+  position: relative;
+  width: min(300px, 100%);
+  aspect-ratio: 1;
+  margin: 20px auto 8px;
+}
+
+.faceid-video {
+  position: absolute;
+  inset: 14%;
+  width: 72%;
+  height: 72%;
+  border-radius: 50%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  background: #000;
+}
+
+.faceid-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.faceid-progress-track {
+  fill: none;
+  stroke: var(--surface-2);
+  stroke-width: 3;
+}
+
+.faceid-progress {
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.35s ease;
+}
+
+.faceid-tick {
+  stroke: var(--border);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke 0.25s ease;
+}
+
+.faceid-tick.is-target {
+  stroke: var(--primary-2);
+  animation: faceid-pulse 1.4s ease-in-out infinite;
+}
+
+.faceid-tick.is-pointed {
+  stroke: var(--primary);
+}
+
+.faceid-tick.is-captured {
+  stroke: var(--success);
+}
+
+.faceid.is-done .faceid-ring {
+  animation: faceid-done 0.5s ease;
+}
+
+.faceid-check {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+}
+
+.faceid-check circle {
+  fill: var(--success);
+}
+
+.faceid-check path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.faceid-instruction {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.faceid-message {
+  min-height: 20px;
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--warning);
+}
+
+.faceid-message.is-ok {
+  color: var(--text-muted);
+}
+
+.faceid-continue {
+  margin-top: 16px;
+}
+
+@keyframes faceid-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes faceid-done {
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faceid-tick.is-target,
+  .faceid.is-done .faceid-ring {
+    animation: none;
+  }
+}
+
+.privacy-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.privacy-note svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.privacy-note strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.privacy-note p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
