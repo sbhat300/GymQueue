@@ -255,6 +255,15 @@ h3 {
   margin-left: -10px;
 }
 
+.topbar-account {
+  color: var(--text-muted);
+}
+
+.topbar-account:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 /* ---------- cards ---------- */
 .card {
   background: var(--surface);
@@ -850,6 +859,32 @@ h3 {
 .busy-table th {
   color: var(--text-muted);
   font-weight: 600;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.filter-select {
+  width: auto;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.filter-check {
+  cursor: pointer;
 }
 
 .status-text {

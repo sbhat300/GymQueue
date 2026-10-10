@@ -30,7 +30,9 @@ export function Layout() {
             <span className="avatar avatar-sm" aria-hidden="true">
               {initials(user.display_name ?? user.netid)}
             </span>
-            <span>{user.display_name ?? user.netid}</span>
+            <Link to="/account" className="topbar-account" title="Account & face data">
+              {user.display_name ?? user.netid}
+            </Link>
             <button className="btn btn-sm btn-ghost" onClick={handleLogout}>
               Log out
             </button>

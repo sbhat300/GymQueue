@@ -52,6 +52,11 @@ class Settings:
     heartbeat_s: float = field(default_factory=lambda: _f("HEARTBEAT_S", 3.0))
     max_fps: float = field(default_factory=lambda: _f("MAX_FPS", 5.0))
 
+    # --- liveness (anti-spoofing) ---
+    liveness: bool = field(default_factory=lambda: os.getenv("LIVENESS", "true").lower() not in ("0", "false", "no", "off"))
+    liveness_min_turn: float = field(default_factory=lambda: _f("LIVENESS_MIN_TURN", 0.20))  # yaw ratio, ~20 degrees
+    liveness_window_s: float = field(default_factory=lambda: _f("LIVENESS_WINDOW_S", 8.0))
+
     # --- storage ---
     face_store: str = field(default_factory=lambda: os.getenv("FACE_STORE", "local"))  # local | supabase
     local_store_path: str = field(default_factory=lambda: os.getenv("LOCAL_STORE_PATH", str(ROOT / "data" / "faces.json")))

@@ -48,3 +48,7 @@ async def finish(session_id: str) -> dict:
 
 async def cancel(session_id: str) -> dict:
     return await _request("DELETE", f"/enroll/{session_id}")
+
+
+async def delete_face(user_id: str) -> dict:
+    return await _request("DELETE", f"/faces/{user_id}")

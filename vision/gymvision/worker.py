@@ -103,12 +103,15 @@ class MachineWorker:
 
         seen: dict[str, float] = {}
         unknown = 0
+        with self.lock:
+            confirmed = {uid for uid, p in self.presence.users.items() if p.confirmed}
         for t in tracks:
             uid = t.identity
             if uid == UNKNOWN:
                 unknown += 1
-            else:
+            elif not settings.liveness or t.live or uid in confirmed:
                 seen[uid] = max(seen.get(uid, 0.0), t.last_score)
+            # else: recognised but not yet seen moving like a real head - can't check in on a photo
         self.unknown_faces = unknown
         with self.lock:
             events = self.presence.observe(now, seen, unknown)
@@ -138,11 +141,15 @@ class MachineWorker:
         for t in tracks:
             x1, y1, x2, y2 = t.bbox.astype(int)
             known = t.identity != UNKNOWN
-            color = (60, 200, 60) if known else (40, 40, 230)
+            pending = known and settings.liveness and not t.live
+            color = (0, 200, 255) if pending else (60, 200, 60) if known else (40, 40, 230)
             name = (self.gallery.label(t.identity) or t.identity[:8]) if known else "unknown"
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
             cv2.putText(img, f"{name} {t.last_score:.2f} ({x2 - x1}px)", (x1, max(15, y1 - 8)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+            if pending:
+                cv2.putText(img, "liveness check: turn your head left and right", (x1, y2 + 18),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         with self.lock:
             snap = self.presence.snapshot(now)
         y = 22

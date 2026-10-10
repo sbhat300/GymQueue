@@ -8,6 +8,7 @@ import { FaceEnrollPage } from "./pages/FaceEnrollPage";
 import { HomePage } from "./pages/HomePage";
 import { MachineListPage } from "./pages/MachineListPage";
 import { MachineDetailPage } from "./pages/MachineDetailPage";
+import { AccountPage } from "./pages/AccountPage";
 
 export default function App() {
   return (
@@ -19,6 +20,8 @@ export default function App() {
           <Route path="/setup-name" element={<SetupNamePage />} />
           <Route path="/setup-face" element={<FaceEnrollPage />} />
           <Route element={<RequireOnboarded />}>
+            {/* outside RequireFaceEnrolled so you can still manage (or re-add) your face data */}
+            <Route path="/account" element={<AccountPage />} />
             <Route element={<RequireFaceEnrolled />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/campuses/:campusId" element={<MachineListPage />} />

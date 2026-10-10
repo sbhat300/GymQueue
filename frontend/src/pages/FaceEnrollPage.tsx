@@ -123,6 +123,11 @@ export function FaceEnrollPage() {
         Required before you can join a queue: this is how machines recognise you automatically, so you don't have
         to tap "check in" or "finish" yourself.
       </p>
+      <p className="card-subtitle" style={{ marginBottom: 16 }}>
+        By scanning, you agree to GymQueue storing a numeric face signature (not photos) on the gym's camera server,
+        used only to recognise you at machines. You can re-scan or delete it anytime from your Account page (tap
+        your name at the top).
+      </p>
 
       {scanning && (
         <div className="card">

@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import type { User } from "../types";
 
 export interface EnrollFace {
   bbox: number[];
@@ -44,4 +45,8 @@ export function finishEnrollment(sessionId: string) {
 
 export function cancelEnrollment(sessionId: string) {
   return apiRequest<{ cancelled: boolean }>(`/vision/enroll/${sessionId}`, { method: "DELETE" });
+}
+
+export function deleteMyFace() {
+  return apiRequest<User>("/users/me/face", { method: "DELETE" });
 }

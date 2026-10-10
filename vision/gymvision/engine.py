@@ -39,14 +39,31 @@ class Face:
         pitch ~ 0.5-0.85 looking straight (varies per face); smaller when looking up, larger looking down.
         These are compared against the person's own neutral pose during enrollment,
         so the absolute values do not have to be calibrated.
+
+        Measured along the face's own eye axis, so tilting the head (or a photo) sideways
+        doesn't register as a turn. Both ratios are unchanged by moving, zooming, rotating or
+        tilting a flat picture of a face - only a real 3D head changes them (see liveness).
         """
         le, re, nose, lm, rm = self.kps
         eye_mid = (le + re) / 2
         mouth_mid = (lm + rm) / 2
-        eye_dist = max(np.linalg.norm(re - le), 1e-3)
-        yaw = (nose[0] - eye_mid[0]) / eye_dist
-        pitch = (nose[1] - eye_mid[1]) / max(mouth_mid[1] - eye_mid[1], 1e-3)
-        return float(yaw), float(pitch)
+        axis = re - le
+        eye_dist = max(float(np.linalg.norm(axis)), 1e-3)
+        ux = axis / eye_dist                  # along the eyes
+        uy = np.array([-ux[1], ux[0]])        # down the face
+        v = nose - eye_mid
+        yaw = float(v @ ux) / eye_dist
+        pitch = float(v @ uy) / max(float((mouth_mid - eye_mid) @ uy), 1e-3)
+        return yaw, pitch
+
+    def roll(self) -> float:
+        return roll_degrees(self)
+
+
+def roll_degrees(face: Face) -> float:
+    """In-plane rotation of the face (eye line vs horizontal)."""
+    le, re = face.kps[0], face.kps[1]
+    return float(np.degrees(np.arctan2(re[1] - le[1], re[0] - le[0])))
 
 
 def sharpness(img: np.ndarray, face: Face) -> float:

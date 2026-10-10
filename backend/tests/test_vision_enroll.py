@@ -127,3 +127,28 @@ async def test_enroll_errors_from_vision_propagate(client, monkeypatch):
     res = await client.post("/vision/enroll/sess-5/finish", headers=alice["headers"])
     assert res.status_code == 409
     assert "already registered" in res.json()["detail"]
+
+
+async def test_delete_my_face_removes_it_from_vision_and_resets_flag(client, db, monkeypatch):
+    alice = await signup(client, "alice", "Alice")
+    await db.users.update_one({"netid": "alice"}, {"$set": {"face_enrolled": True}})
+    deleted = []
+
+    async def fake_delete(user_id: str) -> dict:
+        deleted.append(user_id)
+        return {"deleted": user_id}
+
+    monkeypatch.setattr(enroll_client, "delete_face", fake_delete)
+    res = await client.delete("/users/me/face", headers=alice["headers"])
+    assert res.status_code == 200
+    assert res.json()["face_enrolled"] is False
+    assert deleted == [alice["user"]["id"]]
+    assert (await db.users.find_one({"netid": "alice"}))["face_enrolled"] is False
+
+
+async def test_delete_my_face_fails_loudly_if_vision_unreachable(client, db):
+    alice = await signup(client, "alice", "Alice")
+    await db.users.update_one({"netid": "alice"}, {"$set": {"face_enrolled": True}})
+    res = await client.delete("/users/me/face", headers=alice["headers"])  # vision_url is blank in tests
+    assert res.status_code == 503
+    assert (await db.users.find_one({"netid": "alice"}))["face_enrolled"] is True

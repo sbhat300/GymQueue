@@ -7,6 +7,17 @@ import { formatWaitRange } from "../utils/format";
 
 const STATS_REFRESH_MS = 30_000;
 
+type SortBy = "wait" | "name";
+
+function isFree(now: MachineNow | undefined): boolean {
+  return !!now && !now.in_use && now.queue_length === 0;
+}
+
+function label(category: string): string {
+  const s = category.replace("_", " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function availability(now: MachineNow | undefined): { primary: string; secondary?: string } | null {
   if (!now) return null;
   if (!now.in_use && now.queue_length === 0) return { primary: "Free now" };
@@ -21,6 +32,9 @@ export function MachineListPage() {
   const [machines, setMachines] = useState<Machine[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<Record<string, MachineNow>>({});
+  const [sortBy, setSortBy] = useState<SortBy>("wait");
+  const [freeOnly, setFreeOnly] = useState(false);
+  const [category, setCategory] = useState("all");
 
   useEffect(() => {
     if (!campusId) return;
@@ -40,6 +54,16 @@ export function MachineListPage() {
     return () => clearInterval(interval);
   }, [campusId]);
 
+  function visible(list: Machine[]): Machine[] {
+    const shown = list.filter(
+      (m) => (category === "all" || m.category === category) && (!freeOnly || isFree(stats[m.id]))
+    );
+    const wait = (m: Machine) => stats[m.id]?.estimated_wait_seconds[1] ?? Number.MAX_SAFE_INTEGER;
+    return [...shown].sort((a, b) =>
+      sortBy === "wait" ? wait(a) - wait(b) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name)
+    );
+  }
+
   return (
     <div className="page">
       <Link to="/" className="back-link">
@@ -49,7 +73,38 @@ export function MachineListPage() {
       {error && <div className="error-text">{error}</div>}
       {!machines && !error && <div className="muted">Loading…</div>}
       {machines?.length === 0 && <div className="empty-state">No machines at this campus.</div>}
-      {machines?.map((machine) => {
+
+      {machines && machines.length > 0 && (
+        <div className="filter-row">
+          <label className="filter">
+            Sort
+            <select className="input filter-select" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+              <option value="wait">Shortest wait</option>
+              <option value="name">Name</option>
+            </select>
+          </label>
+          <label className="filter">
+            Type
+            <select className="input filter-select" value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="all">All</option>
+              {[...new Set(machines.map((m) => m.category))].sort().map((c) => (
+                <option key={c} value={c}>
+                  {label(c)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="filter filter-check">
+            <input type="checkbox" checked={freeOnly} onChange={(e) => setFreeOnly(e.target.checked)} />
+            Free now only
+          </label>
+        </div>
+      )}
+
+      {machines && visible(machines).length === 0 && machines.length > 0 && (
+        <div className="empty-state">No machines match. Try another filter.</div>
+      )}
+      {machines && visible(machines).map((machine) => {
         const status = availability(stats[machine.id]);
         return (
           <Link key={machine.id} to={`/machines/${machine.id}`} className="card card-link card-row">
