@@ -89,4 +89,5 @@ export interface MachineStats extends MachineNow {
   local_hour: number; // gym's timezone
   busy_today: BusyHour[];
   includes_demo_data: boolean;
+  leaves_at: string | null; // set only when you're active here and currently off camera
 }

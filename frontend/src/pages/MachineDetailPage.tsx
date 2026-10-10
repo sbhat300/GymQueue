@@ -14,8 +14,10 @@ import { RestControls } from "../components/RestControls";
 import { JoinRequestModal } from "../components/JoinRequestModal";
 import { BusyTimesChart } from "../components/BusyTimesChart";
 import { formatWaitRange } from "../utils/format";
+import { useCountdown } from "../hooks/useCountdown";
 
 const STATS_REFRESH_MS = 30_000;
+const CAMERA_POLL_MS = 1_000; // while active here, so the off-camera countdown stays live
 
 const REFRESH_EVENT_TYPES = new Set([
   "queue_updated",
@@ -50,10 +52,16 @@ export function MachineDetailPage() {
     getMachineStats(machineId).then(setStats).catch(() => {});
   }, [machineId]);
 
+  const myEntry = entries?.find((e) => e.users.some((u) => u.id === user?.id)) ?? null;
+  const isActiveHere = myEntry?.state === "active" || myEntry?.state === "resting";
+
   useEffect(() => {
-    const interval = setInterval(refresh, STATS_REFRESH_MS); // waits tick down even when nothing changes
+    // poll fast while you're actually on the machine, so the off-camera countdown
+    // (driven by the camera's heartbeat) doesn't lag behind reality by up to 30s
+    const ms = isActiveHere ? CAMERA_POLL_MS : STATS_REFRESH_MS;
+    const interval = setInterval(refresh, ms);
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [refresh, isActiveHere]);
 
   useEffect(() => {
     if (!machineId) return;
@@ -79,8 +87,6 @@ export function MachineDetailPage() {
   }, [machineId, subscribeMachine, unsubscribeMachine, addEventListener, refresh]);
 
   if (!machineId) return null;
-
-  const myEntry = entries?.find((e) => e.users.some((u) => u.id === user?.id)) ?? null;
 
   async function runAction(fn: () => Promise<unknown>) {
     setActionPending(true);
@@ -148,9 +154,7 @@ export function MachineDetailPage() {
       )}
 
       {myEntry && (myEntry.state === "active" || myEntry.state === "resting") && (
-        <p className="muted" style={{ marginTop: -8, marginBottom: 12 }}>
-          Walking away from the camera wraps up your turn within about 30 seconds - no need to leave manually.
-        </p>
+        <LeavingSoonBanner leavesAt={stats?.leaves_at ?? null} />
       )}
 
       <div className="btn-row" style={{ marginBottom: 20 }}>
@@ -213,6 +217,24 @@ export function MachineDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+function LeavingSoonBanner({ leavesAt }: { leavesAt: string | null }) {
+  const secondsLeft = useCountdown(leavesAt);
+
+  if (!leavesAt) {
+    return (
+      <p className="muted" style={{ marginTop: -8, marginBottom: 12 }}>
+        Walking away from the camera wraps up your turn within about 30 seconds - no need to leave manually.
+      </p>
+    );
+  }
+
+  return (
+    <p className="error-text" style={{ marginTop: -8, marginBottom: 12 }}>
+      Camera can't see you - your turn ends in {secondsLeft}s unless you come back.
+    </p>
   );
 }
 

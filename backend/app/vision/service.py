@@ -4,6 +4,7 @@ once the camera recognises someone. See vision/README.md for the event contract.
 """
 import logging
 import time
+from datetime import datetime, timezone
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -18,15 +19,17 @@ from app.ws.manager import ConnectionManager
 log = logging.getLogger(__name__)
 
 CAMERA_STALE_SECONDS = 30
-# machine_id -> (monotonic time of last heartbeat, present user ids, unknown-face count)
-_last_heartbeat: dict[str, tuple[float, set[str], int]] = {}
+SEEN_THRESHOLD_S = 0.5  # just enough to absorb a single dropped frame, not vision's steadier 2.0s "present" cutoff
+# machine_id -> (monotonic time of last heartbeat, present user ids, unknown-face count,
+#                per-user snapshot by id: seconds_unseen/leaves_at/resting/...)
+_last_heartbeat: dict[str, tuple[float, set[str], int, dict[str, dict]]] = {}
 
 
-def _fresh_heartbeat(machine_id: str) -> tuple[set[str], int] | None:
+def _fresh_heartbeat(machine_id: str) -> tuple[set[str], int, dict[str, dict]] | None:
     seen = _last_heartbeat.get(machine_id)
     if seen is None or time.monotonic() - seen[0] > CAMERA_STALE_SECONDS:
         return None
-    return seen[1], seen[2]
+    return seen[1], seen[2], seen[3]
 
 
 def people_on_camera(machine_id: str) -> int | None:
@@ -47,6 +50,21 @@ def any_member_present(machine_id: str, user_ids: list) -> bool:
         return False
     present_ids = hb[0]
     return any(str(uid) in present_ids for uid in user_ids)
+
+
+def leaves_at_if_off_camera(machine_id: str, user_id: str) -> str | None:
+    """If this user is tracked on this machine's camera and currently NOT visible, the
+    ISO deadline their turn ends at if they don't come back - for a live countdown in
+    the app. None if they're on camera, untracked, resting (absence doesn't count), or
+    the camera feed is stale.
+    """
+    hb = _fresh_heartbeat(machine_id)
+    if hb is None:
+        return None
+    snap = hb[2].get(user_id)
+    if snap is None or snap["seconds_unseen"] < SEEN_THRESHOLD_S or snap["resting"]:
+        return None
+    return datetime.fromtimestamp(snap["leaves_at"], tz=timezone.utc).isoformat()
 
 
 def _try_oid(value: str) -> ObjectId | None:
@@ -121,7 +139,8 @@ async def handle_vision_event(db, manager: ConnectionManager, event: VisionEvent
     if event.type == "heartbeat":
         present_ids = {str(u) for u in (getattr(event, "present_user_ids", None) or [])}
         unknown = int(getattr(event, "unknown_faces", 0) or 0)
-        _last_heartbeat[event.machine_id] = (time.monotonic(), present_ids, unknown)
+        users_by_id = {str(u["user_id"]): u for u in (getattr(event, "users", None) or [])}
+        _last_heartbeat[event.machine_id] = (time.monotonic(), present_ids, unknown, users_by_id)
         await _catch_up_present_users(db, manager, event)
         return  # heartbeat itself has no _HANDLERS entry - nothing else to dispatch
 

@@ -100,6 +100,38 @@ async def test_machine_stats_endpoint(client, machine):
     assert body["includes_demo_data"] is False
 
 
+async def test_leaves_at_set_only_while_active_and_off_camera(client, machine):
+    mid = machine["machine_id"]
+    alice = await signup(client, "alice", "Alice")
+    res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
+    entry_id = res.json()["id"]
+    await client.post(f"/machines/{mid}/queue/{entry_id}/check-in", headers=alice["headers"])
+    uid = alice["user"]["id"]
+
+    vision_service._last_heartbeat[mid] = (
+        time.monotonic(), set(), 0,
+        {uid: {"seconds_unseen": 9.0, "leaves_at": time.time() + 12.3, "resting": False}},
+    )
+    body = (await client.get(f"/machines/{mid}/stats", headers=alice["headers"])).json()
+    assert body["leaves_at"] is not None
+
+    # seen right now -> no countdown
+    vision_service._last_heartbeat[mid] = (
+        time.monotonic(), {uid}, 0,
+        {uid: {"seconds_unseen": 0.1, "leaves_at": time.time() + 12.3, "resting": False}},
+    )
+    body = (await client.get(f"/machines/{mid}/stats", headers=alice["headers"])).json()
+    assert body["leaves_at"] is None
+
+    # off camera but resting -> absence doesn't count, no countdown
+    vision_service._last_heartbeat[mid] = (
+        time.monotonic(), set(), 0,
+        {uid: {"seconds_unseen": 9.0, "leaves_at": time.time() + 12.3, "resting": True}},
+    )
+    body = (await client.get(f"/machines/{mid}/stats", headers=alice["headers"])).json()
+    assert body["leaves_at"] is None
+
+
 async def test_campus_summary(client, machine):
     alice = await signup(client, "alice", "Alice")
     res = await client.get(f"/campuses/{machine['campus_id']}/machine-stats", headers=alice["headers"])
