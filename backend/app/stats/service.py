@@ -66,7 +66,7 @@ async def busy_today(db, machine_id, now: datetime | None = None) -> list[dict]:
     ]):
         cells[d["_id"]] = d
     return [
-        {"hour": h, "people": round(cells[h]["people"], 1) if h in cells else None,
+        {"hour": h, "people": round(cells[h]["people"], 1) if cells.get(h, {}).get("people") is not None else None,
          "samples": cells[h]["samples"] if h in cells else 0}
         for h in range(24)
     ]

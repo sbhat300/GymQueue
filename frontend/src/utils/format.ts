@@ -13,6 +13,15 @@ export function formatWaitRange([min, max]: [number, number]): string {
   return `${Math.round(min / 60)}–${Math.round(max / 60)} min`;
 }
 
+export function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 export function formatHour(hour: number, short = false): string {
   const suffix = hour < 12 ? (short ? "a" : " AM") : short ? "p" : " PM";
   const h = hour % 12 === 0 ? 12 : hour % 12;

@@ -254,7 +254,7 @@ function RightNow({ stats, myEntry }: { stats: MachineStats; myEntry: QueueEntry
     <div className="stat-row">
       <div className="stat">
         <div className="stat-label">Right now</div>
-        <div className="stat-value">{stats.in_use ? "In use" : "Free"}</div>
+        <div className={`stat-value ${stats.in_use ? "" : "status-free"}`}>{stats.in_use ? "In use" : "Free"}</div>
         {stats.people_on_camera !== null && (
           <div className="stat-note">
             Camera: {stats.people_on_camera === 1 ? "1 person" : `${stats.people_on_camera} people`}

@@ -1,5 +1,5 @@
 import type { QueueEntry } from "../types";
-import { formatWaitRange } from "../utils/format";
+import { formatWaitRange, initials } from "../utils/format";
 
 function stateLabel(entry: QueueEntry): string {
   if (entry.state === "grace") {
@@ -26,18 +26,27 @@ export function QueueEntryRow({
       onClick={onRequestJoin}
       style={onRequestJoin ? { cursor: "pointer" } : undefined}
     >
-      <div>
-        <div className="queue-entry-users">
-          {entry.users
-            .map((u) => (u.id === currentUserId ? `${u.display_name} (you)` : u.display_name))
-            .join(" & ")}
+      <div className="queue-entry-main">
+        <div className="avatar-stack">
+          {entry.users.map((u) => (
+            <span key={u.id} className="avatar" aria-hidden="true">
+              {initials(u.display_name)}
+            </span>
+          ))}
         </div>
-        {entry.rest_count > 0 && (
-          <div className="card-subtitle">
-            {entry.rest_count} rest{entry.rest_count > 1 ? "s" : ""} used
+        <div>
+          <div className="queue-entry-users">
+            {entry.users
+              .map((u) => (u.id === currentUserId ? `${u.display_name} (you)` : u.display_name))
+              .join(" & ")}
           </div>
-        )}
-        {onRequestJoin && <div className="card-subtitle">Tap to request to pair up</div>}
+          {entry.rest_count > 0 && (
+            <div className="card-subtitle">
+              {entry.rest_count} rest{entry.rest_count > 1 ? "s" : ""} used
+            </div>
+          )}
+          {onRequestJoin && <div className="card-subtitle">Tap to request to pair up</div>}
+        </div>
       </div>
       <div className="card-row-end">
         <span className={`badge badge-${entry.state}`}>{stateLabel(entry)}</span>
