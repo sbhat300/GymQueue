@@ -6,7 +6,7 @@ import { createJoinRequest } from "../api/joinRequests";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationContext";
 import { ApiError } from "../api/client";
-import type { Machine, QueueEntry, WsEvent } from "../types";
+import type { Machine, QueueEntry, QueueState, WsEvent } from "../types";
 import { QueueEntryRow } from "../components/QueueEntryRow";
 import { CheckInPanel } from "../components/CheckInPanel";
 import { RestControls } from "../components/RestControls";
@@ -32,7 +32,9 @@ export function MachineDetailPage() {
   const [entries, setEntries] = useState<QueueEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionPending, setActionPending] = useState(false);
-  const [joinRequestTarget, setJoinRequestTarget] = useState<{ entryId: string; name: string } | null>(null);
+  const [joinRequestTarget, setJoinRequestTarget] = useState<{ entryId: string; name: string; state: QueueState } | null>(
+    null
+  );
 
   const refresh = useCallback(() => {
     if (!machineId) return;
@@ -159,8 +161,7 @@ export function MachineDetailPage() {
       {entries?.length === 0 && <div className="empty-state">No one's in line. Be the first to join!</div>}
       {entries?.map((entry) => {
         const isMe = entry.users.some((u) => u.id === user?.id);
-        const canRequestJoin =
-          !myEntry && !isMe && entry.state === "waiting" && entry.users.length === 1;
+        const canRequestJoin = !myEntry && !isMe && entry.users.length === 1;
         return (
           <QueueEntryRow
             key={entry.id}
@@ -168,7 +169,12 @@ export function MachineDetailPage() {
             currentUserId={user?.id}
             onRequestJoin={
               canRequestJoin
-                ? () => setJoinRequestTarget({ entryId: entry.id, name: entry.users[0].display_name })
+                ? () =>
+                    setJoinRequestTarget({
+                      entryId: entry.id,
+                      name: entry.users[0].display_name,
+                      state: entry.state,
+                    })
                 : undefined
             }
           />
@@ -178,6 +184,7 @@ export function MachineDetailPage() {
       {joinRequestTarget && (
         <JoinRequestModal
           targetName={joinRequestTarget.name}
+          targetState={joinRequestTarget.state}
           submitting={actionPending}
           onConfirm={confirmJoinRequest}
           onCancel={() => setJoinRequestTarget(null)}

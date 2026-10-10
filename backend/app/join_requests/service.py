@@ -4,7 +4,7 @@ from bson import ObjectId
 from fastapi import HTTPException, status
 from pymongo import ReturnDocument
 
-from app.models.common import EventType, JoinRequestStatus, QueueState
+from app.models.common import EventType, JoinRequestStatus
 from app.notifications.service import broadcast_queue_updated, notify_users
 from app.queue.service import LIVE_STATE_VALUES, get_entry_or_404
 from app.ws.manager import ConnectionManager
@@ -16,7 +16,7 @@ async def create_join_request(
     entry = await get_entry_or_404(db, entry_id)
     if entry["machine_id"] != machine_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Queue entry not found on this machine")
-    if entry["state"] != QueueState.WAITING.value or len(entry["user_ids"]) != 1:
+    if entry["state"] not in LIVE_STATE_VALUES or len(entry["user_ids"]) != 1:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This queue slot can't accept a partner request right now")
 
     target_id = entry["user_ids"][0]
@@ -83,7 +83,7 @@ async def accept_join_request(db, manager: ConnectionManager, request_id: Object
     updated_entry = await db.queue_entries.find_one_and_update(
         {
             "_id": entry["_id"],
-            "state": QueueState.WAITING.value,
+            "state": {"$in": LIVE_STATE_VALUES},
             "version": entry["version"],
             "user_ids": {"$size": 1},
         },

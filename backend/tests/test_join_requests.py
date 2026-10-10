@@ -34,7 +34,7 @@ async def test_pairing_flow(client, machine):
     assert {u["display_name"] for u in paired["users"]} == {"Carol", "Dave"}
 
 
-async def test_cannot_request_join_on_active_entry(client, machine):
+async def test_can_request_and_join_an_active_entry(client, machine):
     alice = await signup(client, "alice", "Alice")
     bob = await signup(client, "bob", "Bob")
     mid = machine["machine_id"]
@@ -44,6 +44,32 @@ async def test_cannot_request_join_on_active_entry(client, machine):
     await client.post(f"/machines/{mid}/queue/{entry_id}/check-in", headers=alice["headers"])
 
     res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=bob["headers"])
+    assert res.status_code == 200
+    request_id = res.json()["id"]
+
+    res = await client.post(f"/join-requests/{request_id}/accept", headers=alice["headers"])
+    assert res.status_code == 200
+
+    res = await client.get(f"/machines/{mid}/queue", headers=alice["headers"])
+    entries = res.json()
+    assert len(entries) == 1
+    assert entries[0]["state"] == "active"
+    assert {u["display_name"] for u in entries[0]["users"]} == {"Alice", "Bob"}
+
+
+async def test_cannot_request_join_on_already_paired_entry(client, machine):
+    alice = await signup(client, "alice", "Alice")
+    bob = await signup(client, "bob", "Bob")
+    carol = await signup(client, "carol", "Carol")
+    mid = machine["machine_id"]
+
+    res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
+    entry_id = res.json()["id"]
+    res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=bob["headers"])
+    request_id = res.json()["id"]
+    await client.post(f"/join-requests/{request_id}/accept", headers=alice["headers"])
+
+    res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=carol["headers"])
     assert res.status_code == 409
 
 
