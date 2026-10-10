@@ -64,29 +64,29 @@ export interface WsEvent<T = Record<string, unknown>> {
   data: T;
 }
 
-export interface BusyCell {
+export interface BusyHour {
   hour: number;
-  busy: number | null; // share of time in use, 0-1; null = no data for that hour
-  queue: number | null; // average people waiting
+  people: number | null; // average people in the queue that hour today; null = no data
   samples: number;
 }
+
+/** [min, max] seconds - every turn is assumed to take 10-15 min */
+export type WaitRange = [number, number];
 
 export interface MachineNow {
   machine_id: string;
   in_use: boolean;
-  queue_length: number;
+  queue_length: number; // entries waiting
+  people_in_queue: number; // everyone on the machine + waiting, partners counted individually
   people_on_camera: number | null; // null = no live camera on this machine
-  estimated_wait_seconds: number;
-  typical_session_seconds: number;
-  typical_session_source: "history" | "default";
-  sessions_counted: number;
+  turns_ahead: number;
+  estimated_wait_seconds: WaitRange;
+  turn_seconds: WaitRange;
 }
 
 export interface MachineStats extends MachineNow {
-  entry_wait_seconds: Record<string, number>;
-  local_weekday: number; // 0 = Monday, gym's timezone
-  local_hour: number;
-  busy_times: BusyCell[][]; // [Mon..Sun][0..23]
-  history_days: number;
+  entry_wait_seconds: Record<string, WaitRange>;
+  local_hour: number; // gym's timezone
+  busy_today: BusyHour[];
   includes_demo_data: boolean;
 }

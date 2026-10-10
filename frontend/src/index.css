@@ -389,31 +389,6 @@ h1, h2, h3 {
   margin-bottom: 20px;
 }
 
-.day-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 14px;
-  overflow-x: auto;
-}
-
-.day-tab {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 5px 0;
-  border-radius: 999px;
-}
-
-.day-tab.is-selected {
-  color: var(--text);
-  border-color: var(--border);
-  background: var(--bg);
-}
-
 .busy-headline {
   font-weight: 600;
   margin-bottom: 10px;

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.config import settings
 from app.db import get_db
 from app.deps import get_current_user
 from app.models.common import oid
@@ -19,13 +18,10 @@ async def machine_stats(
     machine = await db.machines.find_one({"_id": oid(machine_id, "machine_id")})
     if machine is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Machine not found")
-    local = service.local_now()
     return {
         **await service.machine_now(db, machine),
-        "local_weekday": local.weekday(),  # 0 = Monday, in the gym's timezone
-        "local_hour": local.hour,
-        "busy_times": await service.busy_times(db, machine["_id"]),
-        "history_days": settings.stats_history_days,
+        "local_hour": service.local_now().hour,  # in the gym's timezone
+        "busy_today": await service.busy_today(db, machine["_id"]),
         "includes_demo_data": await db.machine_samples.find_one({"machine_id": machine["_id"], "synthetic": True}) is not None,
     }
 

@@ -1,5 +1,5 @@
 import type { QueueEntry } from "../types";
-import { formatWait } from "../utils/format";
+import { formatWaitRange } from "../utils/format";
 
 function stateLabel(entry: QueueEntry): string {
   if (entry.state === "grace") {
@@ -17,7 +17,7 @@ export function QueueEntryRow({
   entry: QueueEntry;
   currentUserId?: string;
   onRequestJoin?: () => void;
-  estimatedWaitSeconds?: number;
+  estimatedWaitSeconds?: [number, number];
 }) {
   const isMe = entry.users.some((u) => u.id === currentUserId);
   return (
@@ -43,7 +43,7 @@ export function QueueEntryRow({
         <span className={`badge badge-${entry.state}`}>{stateLabel(entry)}</span>
         {estimatedWaitSeconds !== undefined && (
           <div className="wait-chip" style={{ marginTop: 4 }}>
-            {estimatedWaitSeconds < 60 ? "up next" : `${formatWait(estimatedWaitSeconds)} wait`}
+            {estimatedWaitSeconds[1] <= 0 ? "up next" : `${formatWaitRange(estimatedWaitSeconds)} wait`}
           </div>
         )}
       </div>

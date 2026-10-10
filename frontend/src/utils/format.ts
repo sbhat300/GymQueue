@@ -1,10 +1,16 @@
-/** "~12 min", "~1 h 5 min"; waits are estimates, so never show seconds. */
-export function formatWait(seconds: number): string {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes < 60) return `~${minutes} min`;
+/** "10–15 min", "1 h–1 h 15 min"; waits are rough, so never show seconds. */
+export function formatMinutes(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m ? `~${h} h ${m} min` : `~${h} h`;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+export function formatWaitRange([min, max]: [number, number]): string {
+  if (max <= 0) return "No wait";
+  if (min >= 3600 || max >= 3600) return `${formatMinutes(min)}–${formatMinutes(max)}`;
+  return `${Math.round(min / 60)}–${Math.round(max / 60)} min`;
 }
 
 export function formatHour(hour: number, short = false): string {
@@ -12,5 +18,3 @@ export function formatHour(hour: number, short = false): string {
   const h = hour % 12 === 0 ? 12 : hour % 12;
   return `${h}${suffix}`;
 }
-
-export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

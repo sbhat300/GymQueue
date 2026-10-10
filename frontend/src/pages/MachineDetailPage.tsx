@@ -13,7 +13,7 @@ import { CheckInPanel } from "../components/CheckInPanel";
 import { RestControls } from "../components/RestControls";
 import { JoinRequestModal } from "../components/JoinRequestModal";
 import { BusyTimesChart } from "../components/BusyTimesChart";
-import { formatWait } from "../utils/format";
+import { formatWaitRange } from "../utils/format";
 
 const STATS_REFRESH_MS = 30_000;
 
@@ -194,14 +194,11 @@ export function MachineDetailPage() {
 
       {stats && (
         <>
-          <h3 style={{ marginTop: 24 }}>Busy times</h3>
+          <h3 style={{ marginTop: 24 }}>Busy today</h3>
           <BusyTimesChart
-            busyTimes={stats.busy_times}
-            localWeekday={stats.local_weekday}
+            hours={stats.busy_today}
             localHour={stats.local_hour}
-            historyDays={stats.history_days}
             includesDemoData={stats.includes_demo_data}
-            liveBusy={stats.in_use || stats.queue_length > 0}
           />
         </>
       )}
@@ -222,15 +219,14 @@ export function MachineDetailPage() {
 function RightNow({ stats, myEntry }: { stats: MachineStats; myEntry: QueueEntry | null }) {
   const myWait = myEntry ? stats.entry_wait_seconds[myEntry.id] : undefined;
   let waitLabel = "Wait if you join";
-  let waitValue = stats.estimated_wait_seconds < 60 ? "No wait" : formatWait(stats.estimated_wait_seconds);
+  let waitValue = formatWaitRange(stats.estimated_wait_seconds);
   if (myWait !== undefined) {
     waitLabel = "Your wait";
-    waitValue = myWait < 60 ? "Up next" : formatWait(myWait);
+    waitValue = myWait[1] <= 0 ? "Up next" : formatWaitRange(myWait);
   } else if (myEntry) {
     waitLabel = "Your turn";
     waitValue = "Now";
   }
-  const typical = formatWait(stats.typical_session_seconds).replace("~", "");
 
   return (
     <div className="stat-row">
@@ -246,12 +242,13 @@ function RightNow({ stats, myEntry }: { stats: MachineStats; myEntry: QueueEntry
       <div className="stat">
         <div className="stat-label">In line</div>
         <div className="stat-value">{stats.queue_length}</div>
+        <div className="stat-note">{stats.people_in_queue} in queue incl. partners</div>
       </div>
       <div className="stat">
         <div className="stat-label">{waitLabel}</div>
         <div className="stat-value">{waitValue}</div>
         <div className="stat-note">
-          Sessions {stats.typical_session_source === "history" ? "usually" : "typically"} last {typical}
+          {formatWaitRange(stats.turn_seconds)} per turn; partners share a turn
         </div>
       </div>
     </div>

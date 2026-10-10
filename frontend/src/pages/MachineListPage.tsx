@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { listMachines } from "../api/machines";
 import { getCampusMachineStats } from "../api/stats";
 import type { Machine, MachineNow } from "../types";
-import { formatWait } from "../utils/format";
+import { formatWaitRange } from "../utils/format";
 
 const STATS_REFRESH_MS = 30_000;
 
@@ -11,8 +11,8 @@ function availability(now: MachineNow | undefined): { primary: string; secondary
   if (!now) return null;
   if (!now.in_use && now.queue_length === 0) return { primary: "Free now" };
   return {
-    primary: `${formatWait(now.estimated_wait_seconds)} wait`,
-    secondary: now.queue_length ? `${now.queue_length} in line` : "in use",
+    primary: `${formatWaitRange(now.estimated_wait_seconds)} wait`,
+    secondary: `${now.people_in_queue} ${now.people_in_queue === 1 ? "person" : "people"} in queue`,
   };
 }
 

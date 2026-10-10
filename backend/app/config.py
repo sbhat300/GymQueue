@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     # ---- busy times / estimated wait ----
     gym_timezone: str = "America/New_York"
     stats_sample_interval_seconds: float = 60.0
-    stats_history_days: int = 28
+    stats_turn_min_minutes: int = 10   # every turn on a machine is assumed to take 10-15 min
+    stats_turn_max_minutes: int = 15
 
     @property
     def cors_origins_list(self) -> list[str]:
