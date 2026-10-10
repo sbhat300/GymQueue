@@ -1,32 +1,32 @@
 @import url("https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg: #eae7e0;
-  --surface: #f8f6f2;
-  --surface-2: #efece4;
-  --text: #23211d;
-  --text-muted: #726d62;
-  --border: #dcd7cb;
+  --bg: #f6f5f3;
+  --surface: #ffffff;
+  --surface-2: #efeeec;
+  --text: #181818;
+  --text-muted: #6e6b67;
+  --border: #e1dfdb;
 
-  --primary: #a8431f;
-  --primary-hover: #8a3416;
-  --on-primary: #f8f6f2;
+  --primary: #cc0033;
+  --primary-hover: #a3002a;
+  --on-primary: #ffffff;
 
-  --success: #51703a;
-  --warning: #9c7a2e;
-  --danger: #7a2e24;
+  --success: #3f7d46;
+  --warning: #b8860b;
+  --danger: #7a2320;
 
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
 
-  --shadow-xs: 0 1px 2px rgba(35, 30, 20, 0.07);
-  --shadow-sm: 0 2px 10px rgba(35, 30, 20, 0.09);
-  --shadow-md: 0 10px 26px -8px rgba(35, 30, 20, 0.2);
-  --shadow-lg: 0 20px 44px -12px rgba(35, 30, 20, 0.26);
+  --shadow-xs: 0 1px 2px rgba(20, 20, 20, 0.07);
+  --shadow-sm: 0 2px 10px rgba(20, 20, 20, 0.09);
+  --shadow-md: 0 10px 26px -8px rgba(20, 20, 20, 0.2);
+  --shadow-lg: 0 20px 44px -12px rgba(20, 20, 20, 0.26);
   --shadow-primary: 0 6px 16px -6px color-mix(in srgb, var(--primary) 45%, transparent);
 
-  --chart-bar: #cfc9ba;
+  --chart-bar: #e3dfdb;
   --chart-bar-now: var(--primary);
   --chart-grid: var(--border);
 
@@ -41,28 +41,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1a1814;
-    --surface: #221f18;
-    --surface-2: #2a2620;
-    --text: #ece7dc;
-    --text-muted: #a89f8d;
-    --border: #3a352a;
+    --bg: #121010;
+    --surface: #1c1a1a;
+    --surface-2: #242120;
+    --text: #f3f1ee;
+    --text-muted: #a39e9b;
+    --border: #342f2d;
 
-    --primary: #e2703f;
-    --primary-hover: #ef8a5c;
-    --on-primary: #1a1814;
+    --primary: #e8365c;
+    --primary-hover: #f2577a;
+    --on-primary: #15110f;
 
-    --success: #86a567;
-    --warning: #c9a24f;
-    --danger: #c2594a;
+    --success: #7fae71;
+    --warning: #d1a63f;
+    --danger: #c2574a;
 
-    --shadow-xs: 0 1px 2px rgba(10, 8, 5, 0.4);
-    --shadow-sm: 0 2px 12px rgba(10, 8, 5, 0.45);
-    --shadow-md: 0 12px 30px -8px rgba(10, 8, 5, 0.55);
-    --shadow-lg: 0 24px 54px -12px rgba(10, 8, 5, 0.65);
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 12px 30px -8px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 24px 54px -12px rgba(0, 0, 0, 0.65);
     --shadow-primary: 0 6px 18px -6px color-mix(in srgb, var(--primary) 35%, transparent);
 
-    --chart-bar: #443f33;
+    --chart-bar: #352f2d;
     --chart-bar-now: var(--primary);
   }
 }
