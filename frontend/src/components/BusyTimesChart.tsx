@@ -6,7 +6,7 @@ const PLOT_HEIGHT = 140;
 const AXIS_HEIGHT = 22;
 const LEFT_GUTTER = 34;
 const MAX_BAR = 24;
-const RADIUS = 4;
+const RADIUS = 2;
 const DEFAULT_OPEN = 6;
 
 /** Column with a 4px rounded top, square at the baseline. */

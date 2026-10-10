@@ -33,7 +33,7 @@ export function RestControls({
 
   if (entry.state === "resting") {
     return (
-      <div className="panel">
+      <div className="ticket">
         <div className="panel-title">Resting</div>
         <p className="countdown">{restSecondsLeft}s left before your spot wraps up</p>
         <p className="muted" style={{ marginTop: -4 }}>
