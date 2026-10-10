@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 os.environ.setdefault("MONGODB_DB_NAME", "gymqueue_test")
 os.environ.setdefault("DEFAULT_GRACE_PERIOD_SECONDS", "2")
+os.environ.setdefault("DEFAULT_END_OF_USE_GRACE_SECONDS", "2")
 os.environ.setdefault("DEFAULT_REST_PERIOD_SECONDS", "2")
 os.environ.setdefault("SCHEDULER_INTERVAL_SECONDS", "0.5")
 # Tests exercise the vision integration via direct calls/mocks, not a real vision

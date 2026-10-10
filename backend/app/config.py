@@ -11,8 +11,10 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
-    default_grace_period_seconds: int = 120
+    default_grace_period_seconds: int = 120           # turn-start: time to check in once it's your turn
+    default_end_of_use_grace_seconds: int = 30         # end-of-use: time to resume after leaving the camera's view
     default_rest_period_seconds: int = 300
+    max_rest_period_seconds: int = 300                 # hard cap, regardless of per-machine override
     default_max_rests: int = 6
 
     scheduler_interval_seconds: float = 2.0

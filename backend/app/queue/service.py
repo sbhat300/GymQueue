@@ -148,10 +148,8 @@ async def join_queue(db, manager: ConnectionManager, machine_id: ObjectId, user_
 
 
 async def _start_end_of_use_grace(db, manager: ConnectionManager, entry: dict) -> dict:
-    machine = await db.machines.find_one({"_id": entry["machine_id"]})
-    grace_seconds = (machine.get("grace_period_seconds") if machine else None) or settings.default_grace_period_seconds
     now = datetime.now(timezone.utc)
-    deadline = now + timedelta(seconds=grace_seconds)
+    deadline = now + timedelta(seconds=settings.default_end_of_use_grace_seconds)
 
     result = await db.queue_entries.find_one_and_update(
         {
@@ -303,6 +301,7 @@ async def start_rest(db, manager: ConnectionManager, entry_id: ObjectId, user_id
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Maximum of {max_rests} rests already used")
 
     rest_seconds = (machine.get("rest_period_seconds") if machine else None) or settings.default_rest_period_seconds
+    rest_seconds = min(rest_seconds, settings.max_rest_period_seconds)
     now = datetime.now(timezone.utc)
     deadline = now + timedelta(seconds=rest_seconds)
 
@@ -330,7 +329,8 @@ async def start_rest(db, manager: ConnectionManager, entry_id: ObjectId, user_id
             "max_rests": max_rests,
         },
     )
-    await vision_client.notify_rest_started(str(entry["machine_id"]), str(user_id), rest_seconds)
+    for uid in result["user_ids"]:
+        await vision_client.notify_rest_started(str(entry["machine_id"]), str(uid), rest_seconds)
     await broadcast_queue_updated(manager, str(entry["machine_id"]))
     return result
 
@@ -360,7 +360,8 @@ async def return_from_rest(db, manager: ConnectionManager, entry_id: ObjectId, u
         EventType.REST_RETURNED,
         {"machine_id": str(entry["machine_id"]), "queue_entry_id": str(entry_id)},
     )
-    await vision_client.notify_rest_ended(str(entry["machine_id"]), str(user_id))
+    for uid in result["user_ids"]:
+        await vision_client.notify_rest_ended(str(entry["machine_id"]), str(uid))
     await broadcast_queue_updated(manager, str(entry["machine_id"]))
     return result
 

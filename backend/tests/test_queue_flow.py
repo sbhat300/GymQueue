@@ -1,3 +1,7 @@
+from datetime import datetime, timezone
+
+from bson import ObjectId
+
 from tests.conftest import signup
 
 
@@ -106,3 +110,18 @@ async def test_leave_while_waiting_removes_entry(client, machine):
 
     res = await client.get(f"/machines/{mid}/queue", headers=alice["headers"])
     assert len(res.json()) == 1
+
+
+async def test_rest_period_is_capped_even_if_machine_override_is_higher(client, db, machine):
+    mid = machine["machine_id"]
+    await db.machines.update_one({"_id": ObjectId(mid)}, {"$set": {"rest_period_seconds": 10_000}})
+
+    alice = await signup(client, "alice", "Alice")
+    res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
+    entry_id = res.json()["id"]
+    await client.post(f"/machines/{mid}/queue/{entry_id}/check-in", headers=alice["headers"])
+
+    res = await client.post(f"/machines/{mid}/queue/{entry_id}/rest/start", headers=alice["headers"])
+    assert res.status_code == 200
+    rest_deadline = datetime.fromisoformat(res.json()["rest_deadline"])
+    assert (rest_deadline - datetime.now(timezone.utc)).total_seconds() <= 300

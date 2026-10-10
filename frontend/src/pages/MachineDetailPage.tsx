@@ -149,7 +149,7 @@ export function MachineDetailPage() {
 
       {myEntry && (myEntry.state === "active" || myEntry.state === "resting") && (
         <p className="muted" style={{ marginTop: -8, marginBottom: 12 }}>
-          Walking away from the camera for a while automatically wraps up your turn.
+          Walking away from the camera wraps up your turn within about 30 seconds - no need to leave manually.
         </p>
       )}
 
@@ -159,7 +159,7 @@ export function MachineDetailPage() {
             Join queue
           </button>
         )}
-        {myEntry && (
+        {myEntry && (myEntry.state === "waiting" || myEntry.state === "grace") && (
           <button className="btn btn-danger" onClick={handleLeave} disabled={actionPending}>
             Leave queue
           </button>

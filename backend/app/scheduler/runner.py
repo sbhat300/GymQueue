@@ -2,13 +2,16 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
+from fastapi import HTTPException
 from pymongo import ReturnDocument
 
 from app.config import settings
 from app.models.common import EventType, GraceReason, QueueState
 from app.notifications.service import broadcast_queue_updated, notify_users
+from app.queue import service as queue_service
 from app.queue.service import release_machine_and_promote
 from app.vision import client as vision_client
+from app.vision.service import any_member_present
 from app.ws.manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -61,6 +64,14 @@ async def _scan_rest_expiry(db, manager: ConnectionManager) -> None:
     now = datetime.now(timezone.utc)
     cursor = db.queue_entries.find({"state": QueueState.RESTING.value, "rest_deadline": {"$lte": now}})
     async for entry in cursor:
+        if any_member_present(str(entry["machine_id"]), entry["user_ids"]):
+            # still (or again) at the machine when the rest ran out - resume, don't wind down
+            try:
+                await queue_service.return_from_rest(db, manager, entry["_id"], entry["user_ids"][0])
+            except HTTPException:
+                pass  # lost the race to a concurrent rest/return
+            continue
+
         machine = await db.machines.find_one({"_id": entry["machine_id"]})
         grace_seconds = (machine.get("grace_period_seconds") if machine else None) or settings.default_grace_period_seconds
         deadline = now + timedelta(seconds=grace_seconds)

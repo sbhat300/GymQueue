@@ -18,16 +18,35 @@ from app.ws.manager import ConnectionManager
 log = logging.getLogger(__name__)
 
 CAMERA_STALE_SECONDS = 30
-# machine_id -> (monotonic time of last heartbeat, people on camera incl. unrecognised walk-ins)
-_last_heartbeat: dict[str, tuple[float, int]] = {}
+# machine_id -> (monotonic time of last heartbeat, present user ids, unknown-face count)
+_last_heartbeat: dict[str, tuple[float, set[str], int]] = {}
+
+
+def _fresh_heartbeat(machine_id: str) -> tuple[set[str], int] | None:
+    seen = _last_heartbeat.get(machine_id)
+    if seen is None or time.monotonic() - seen[0] > CAMERA_STALE_SECONDS:
+        return None
+    return seen[1], seen[2]
 
 
 def people_on_camera(machine_id: str) -> int | None:
     """How many people a machine's camera sees right now (busy times); None if no live camera."""
-    seen = _last_heartbeat.get(machine_id)
-    if seen is None or time.monotonic() - seen[0] > CAMERA_STALE_SECONDS:
-        return None
-    return seen[1]
+    hb = _fresh_heartbeat(machine_id)
+    return None if hb is None else len(hb[0]) + hb[1]
+
+
+def any_member_present(machine_id: str, user_ids: list) -> bool:
+    """Is any of these GymQueue user ids currently visible on this machine's camera?
+
+    Used so a pair sharing one queue entry is only treated as "gone" when *everyone*
+    in the pair is gone, and so a rest that ran out while someone's still standing
+    right there resumes instead of ending their turn.
+    """
+    hb = _fresh_heartbeat(machine_id)
+    if hb is None:
+        return False
+    present_ids = hb[0]
+    return any(str(uid) in present_ids for uid in user_ids)
 
 
 def _try_oid(value: str) -> ObjectId | None:
@@ -55,12 +74,17 @@ async def _on_user_left(db, manager: ConnectionManager, user_id: ObjectId, machi
     entry = await _find_live_entry(db, user_id, machine_id)
     if entry is None or entry["state"] not in (QueueState.ACTIVE.value, QueueState.RESTING.value):
         return
+    if len(entry["user_ids"]) > 1:
+        partners = [u for u in entry["user_ids"] if u != user_id]
+        if any_member_present(str(machine_id), partners):
+            return  # a partner is still at the machine - the pair's turn continues
     await queue_service.finish_active(db, manager, entry["_id"], user_id)
 
 
 async def _on_rest_ended(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
-    if getattr(event, "reason", None) != "returned":
-        return  # "cancelled"/"expired" are already driven by the backend's own actions/scheduler
+    reason = getattr(event, "reason", None)
+    if reason not in ("returned", "expired"):
+        return  # "cancelled" is just an echo of a return_from_rest the backend already made
     entry = await _find_live_entry(db, user_id, machine_id)
     if entry is None or entry["state"] != QueueState.RESTING.value:
         return
@@ -95,8 +119,9 @@ async def _catch_up_present_users(db, manager: ConnectionManager, event: VisionE
 
 async def handle_vision_event(db, manager: ConnectionManager, event: VisionEvent) -> None:
     if event.type == "heartbeat":
-        people = len(getattr(event, "present_user_ids", None) or []) + int(getattr(event, "unknown_faces", 0) or 0)
-        _last_heartbeat[event.machine_id] = (time.monotonic(), people)
+        present_ids = {str(u) for u in (getattr(event, "present_user_ids", None) or [])}
+        unknown = int(getattr(event, "unknown_faces", 0) or 0)
+        _last_heartbeat[event.machine_id] = (time.monotonic(), present_ids, unknown)
         await _catch_up_present_users(db, manager, event)
         return  # heartbeat itself has no _HANDLERS entry - nothing else to dispatch
 
