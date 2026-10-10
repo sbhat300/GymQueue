@@ -74,13 +74,35 @@ _HANDLERS = {
 }
 
 
+async def _catch_up_present_users(db, manager: ConnectionManager, event: VisionEvent) -> None:
+    """Vision only emits user_arrived once per continuous presence streak, so someone
+    already confirmed present *before* their grace period started (e.g. they were
+    standing at the machine while still queued) never generates a fresh arrival event.
+    Heartbeats repeat every HEARTBEAT_S regardless, so use them to catch that case too.
+    """
+    machine_id = _try_oid(event.machine_id)
+    if machine_id is None:
+        return
+    for uid in getattr(event, "present_user_ids", None) or []:
+        user_id = _try_oid(uid)
+        if user_id is None:
+            continue
+        try:
+            await _on_user_arrived(db, manager, user_id, machine_id, event)
+        except HTTPException as e:
+            log.debug("heartbeat catch-up for %s/%s: %s", user_id, machine_id, e.detail)
+
+
 async def handle_vision_event(db, manager: ConnectionManager, event: VisionEvent) -> None:
     if event.type == "heartbeat":
         people = len(getattr(event, "present_user_ids", None) or []) + int(getattr(event, "unknown_faces", 0) or 0)
         _last_heartbeat[event.machine_id] = (time.monotonic(), people)
+        await _catch_up_present_users(db, manager, event)
+        return  # heartbeat itself has no _HANDLERS entry - nothing else to dispatch
+
     handler = _HANDLERS.get(event.type)
     if handler is None:
-        return  # rest_started, rest_expired, unknown_face, camera_online/offline, heartbeat: informational only
+        return  # rest_started, rest_expired, unknown_face, camera_online/offline: informational only
 
     user_id = _try_oid(getattr(event, "user_id", ""))
     machine_id = _try_oid(event.machine_id)

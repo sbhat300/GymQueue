@@ -26,6 +26,28 @@ async def test_user_arrived_auto_checks_in(client, machine):
     assert res.json()[0]["state"] == "active"
 
 
+async def test_heartbeat_catches_up_a_user_already_present_before_grace_started(client, machine):
+    """vision only emits user_arrived once per continuous presence streak. If someone
+    was already confirmed present on camera *before* their grace period started (no
+    fresh arrival event will ever fire), the next heartbeat's present_user_ids must
+    still catch them and check them in."""
+    alice = await signup(client, "alice", "Alice")
+    mid = machine["machine_id"]
+
+    res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
+    entry = res.json()
+    assert entry["state"] == "grace"
+
+    res = await client.post(
+        "/api/vision/events",
+        json={"events": [_event("heartbeat", mid, present_user_ids=[alice["user"]["id"]], users=[], camera_online=True, fps=5.0)]},
+    )
+    assert res.status_code == 200
+
+    res = await client.get(f"/machines/{mid}/queue", headers=alice["headers"])
+    assert res.json()[0]["state"] == "active"
+
+
 async def test_user_left_starts_end_of_use_grace(client, machine):
     alice = await signup(client, "alice", "Alice")
     mid = machine["machine_id"]
