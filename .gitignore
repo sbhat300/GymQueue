@@ -13,3 +13,13 @@ frontend/dist/
 
 # OS
 .DS_Store
+
+# Vision service
+vision/.venv/
+# enrolled face embeddings (biometric data) - never commit
+vision/data/
+vision/.pytest_cache/
+
+# ESP32 firmware
+# Wi-Fi password
+firmware/esp32cam/secrets.h

@@ -1,0 +1,4 @@
+[
+  {"machine_id": "bench-1", "name": "Bench Press 1", "source": "webcam:0", "roi": [0.2, 0.05, 0.8, 0.95]},
+  {"machine_id": "squat-1", "name": "Squat Rack 1", "source": "esp32:http://gymcam-squat1.local"}
+]
