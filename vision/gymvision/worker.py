@@ -17,6 +17,7 @@ from .gallery import Gallery
 from .pose import SKELETON
 from .reps import EXERCISE_LABELS, SetTracker
 from .tracker import UNKNOWN, FaceTracker, PresenceTracker
+from .vitals import VitalsTracker
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class MachineWorker:
         # rep counting, only on machines with an exercise configured
         self.pose_estimator = None
         self.sets: SetTracker | None = None
+        self.vitals: VitalsTracker | None = None
         self.last_pose = None
         self.pose_fps = 0.0
         self._reps_lock = threading.Lock()  # sets/counter: pose loop vs face loop (user_left)
@@ -54,6 +56,7 @@ class MachineWorker:
             from .pose import PoseEstimator
             self.pose_estimator = PoseEstimator()
             self.sets = SetTracker(cam.exercise)
+            self.vitals = VitalsTracker(self.machine_id, cam.exercise, sink)
 
     def start(self) -> "MachineWorker":
         self.source.start()
@@ -142,6 +145,8 @@ class MachineWorker:
                 finished = self.sets.finish() if left else None
             if finished:
                 events.append(self._set_event(finished, now))
+                if self.vitals is not None:
+                    self.vitals.flush(now)
         self.sink.emit(events)
         if self.sets is None:  # exercise cameras are drawn by the faster pose loop
             self._annotate(frame, tracks, now)
@@ -158,6 +163,7 @@ class MachineWorker:
             try:
                 self.sink.emit(self._count_reps(frame, t0))
                 self._annotate(frame, self._tracks, t0)
+                self._feed_vitals(frame, t0)
             except Exception:
                 log.exception("machine %s: rep counting failed", self.machine_id)
             dt = time.time() - t0
@@ -200,7 +206,23 @@ class MachineWorker:
             finished = self.sets.expire(now)
         if finished:
             out.append(self._set_event(finished, now))
+            if self.vitals is not None:
+                self.vitals.flush(now)
         return out
+
+    def _feed_vitals(self, frame: np.ndarray, now: float) -> None:
+        """Heart rate capture - gated on an in-progress set, not just camera presence,
+        since Presage bills by the second and we only care about someone actually mid-rep."""
+        if self.vitals is None or not self.vitals.enabled or self.sets.user_id is None:
+            return
+        track = max(self._tracks, key=lambda t: t.last_score, default=None)
+        if track is None:
+            return
+        x1, y1, x2, y2 = track.bbox.astype(int)
+        pad_x, pad_y = int((x2 - x1) * 0.3), int((y2 - y1) * 0.3)
+        h, w = frame.shape[:2]
+        crop = frame[max(0, y1 - pad_y):min(h, y2 + pad_y), max(0, x1 - pad_x):min(w, x2 + pad_x)]
+        self.vitals.add_frame(crop, now, self.sets.user_id)
 
     def _set_event(self, finished: dict, now: float) -> dict:
         log.info("machine %s: set done - %s x%d for %s", self.machine_id, finished["exercise"],
@@ -279,6 +301,23 @@ class MachineWorker:
                    else "hands out of view")
             cv2.putText(img, f"{arm}, elbows {m.elbow_height:+.1f} shoulder widths up  [{self.sets.counter.phase}]",
                         (8, y + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 160, 60), 1)
+        self._draw_hr(img, y + 48)
+
+    def _draw_hr(self, img: np.ndarray, y: int) -> None:
+        if self.vitals is None:
+            return
+        if not self.vitals.enabled:
+            text, color = "heart rate: disabled (no PRESAGE_API_KEY)", (150, 150, 150)
+        elif self.vitals.budget_exhausted:
+            text, color = "heart rate: PRESAGE_BUDGET_S used up for this run", (100, 100, 220)
+        elif self.vitals.latest is not None and time.time() - self.vitals.latest["ts"] < 60:
+            age = time.time() - self.vitals.latest["ts"]
+            text, color = f"heart rate: {self.vitals.latest['hr']:.0f} bpm ({age:.0f}s ago)", (80, 220, 255)
+        elif self.sets.user_id is not None:
+            text, color = "heart rate: measuring (first reading takes ~15-20s)...", (150, 150, 150)
+        else:
+            text, color = "heart rate: waiting for a set to start", (120, 120, 120)
+        cv2.putText(img, text, (8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
     def latest_jpeg(self) -> tuple[int, bytes | None]:
         return self._jpeg_seq, self._jpeg

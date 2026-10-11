@@ -22,9 +22,12 @@ log = logging.getLogger(__name__)
 
 CAMERA_STALE_SECONDS = 30
 SEEN_THRESHOLD_S = 0.5  # just enough to absorb a single dropped frame, not vision's steadier 2.0s "present" cutoff
+HR_RETENTION_S = 180  # how long a heart rate reading stays eligible to be attached to a set
 # machine_id -> (monotonic time of last heartbeat, present user ids, unknown-face count,
 #                per-user snapshot by id: seconds_unseen/leaves_at/resting/...)
 _last_heartbeat: dict[str, tuple[float, set[str], int, dict[str, dict]]] = {}
+# machine_id -> [(event ts, hr), ...], recent readings used to tag a set with avg/peak hr
+_recent_hr: dict[str, list[tuple[float, float]]] = {}
 
 
 def _fresh_heartbeat(machine_id: str) -> tuple[set[str], int, dict[str, dict]] | None:
@@ -130,11 +133,39 @@ async def _on_rep_counted(db, manager: ConnectionManager, user_id: ObjectId, mac
 
 async def _on_set_completed(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
     """A set the camera counted goes into the user's workout for today."""
+    avg_hr, peak_hr = _hr_during(event.machine_id, getattr(event, "started_at", None), getattr(event, "ended_at", None))
     entry = await workouts.add_camera_set(
-        db, user_id, machine_id, getattr(event, "exercise", ""), int(getattr(event, "reps", 0) or 0), event.id
+        db, user_id, machine_id, getattr(event, "exercise", ""), int(getattr(event, "reps", 0) or 0), event.id,
+        avg_hr=avg_hr, peak_hr=peak_hr,
     )
     if entry is not None:
         await send_live(manager, [str(user_id)], EventType.WORKOUT_LOGGED, entry)
+
+
+def _hr_during(machine_id: str, started_at: float | None, ended_at: float | None) -> tuple[float | None, float | None]:
+    """Average/peak heart rate from readings whose capture window overlaps a just-finished set."""
+    if started_at is None or ended_at is None:
+        return None, None
+    readings = [hr for ts, hr in _recent_hr.get(machine_id, []) if started_at - 5 <= ts <= ended_at + 5]
+    if not readings:
+        return None, None
+    return round(sum(readings) / len(readings), 1), round(max(readings), 1)
+
+
+async def _on_vitals_update(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
+    """Live heart rate reading for the person mid-set (not stored - the finished set is)."""
+    hr = getattr(event, "hr", None)
+    if hr is None:
+        return
+    readings = [r for r in _recent_hr.get(event.machine_id, []) if r[0] >= event.ts - HR_RETENTION_S]
+    readings.append((event.ts, float(hr)))
+    _recent_hr[event.machine_id] = readings
+    await send_live(manager, [str(user_id)], EventType.VITALS_UPDATE, {
+        "machine_id": str(machine_id),
+        "exercise": getattr(event, "exercise", None),
+        "hr": float(hr),
+        "rr": getattr(event, "rr", None),
+    })
 
 
 _HANDLERS = {
@@ -143,6 +174,7 @@ _HANDLERS = {
     "rest_ended": _on_rest_ended,
     "rep_counted": _on_rep_counted,
     "set_completed": _on_set_completed,
+    "vitals_update": _on_vitals_update,
 }
 
 

@@ -59,6 +59,14 @@ class Settings:
     ort_threads: int = field(default_factory=lambda: _i("ORT_THREADS", 4))
 
 
+    # --- vitals (heart rate during shoulder-press sets, via Presage) ---
+    presage_api_key: str = field(default_factory=lambda: os.getenv("PRESAGE_API_KEY", ""))  # blank = disabled
+    presage_base_url: str = field(default_factory=lambda: os.getenv("PRESAGE_BASE_URL", "https://api.physiology.presagetech.com"))
+    # hard cap on seconds of footage submitted this process's lifetime (1 Presage credit = 30s) -
+    # deliberately conservative so a long demo day can't blow through the account's credit balance
+    presage_budget_s: float = field(default_factory=lambda: _f("PRESAGE_BUDGET_S", 1200.0))
+    vitals_window_s: float = field(default_factory=lambda: _f("VITALS_WINDOW_S", 15.0))  # seconds of footage per reading
+
     # --- storage ---
     face_store: str = field(default_factory=lambda: os.getenv("FACE_STORE", "local"))  # local | supabase
     local_store_path: str = field(default_factory=lambda: os.getenv("LOCAL_STORE_PATH", str(ROOT / "data" / "faces.json")))

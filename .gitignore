@@ -23,3 +23,5 @@ vision/.pytest_cache/
 # ESP32 firmware
 # Wi-Fi password
 firmware/esp32cam/secrets.h
+
+vision/vision.log

@@ -52,7 +52,18 @@ npm run dev
 
 Frontend runs on `http://localhost:5173`.
 
-### 4. Try it
+### 4. Demo data (optional)
+
+```bash
+cd backend
+.venv/bin/python -m scripts.seed_demo            # adds 8 fake people, already queued/active/resting on real machines
+.venv/bin/python -m scripts.seed_demo --clear     # removes them again, leaves everything else untouched
+```
+
+Builds state through the real queue service (join/check-in/rest), so it's indistinguishable from
+real usage. Demo users are tagged `is_demo: True` so `--clear` can cleanly remove just them.
+
+### 5. Try it
 
 Open two browser sessions (e.g. one normal window + one incognito), sign up two different netids, set display names, and join the same machine's queue from both to see live turn promotion, check-in, rest periods, and partner pairing requests.
 

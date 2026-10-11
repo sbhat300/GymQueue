@@ -46,6 +46,7 @@ class EventType(StrEnum):
     QUEUE_UPDATED = "queue_updated"
     REP_COUNTED = "rep_counted"
     WORKOUT_LOGGED = "workout_logged"
+    VITALS_UPDATE = "vitals_update"
 
 
 def oid(value: str, field: str = "id") -> ObjectId:
