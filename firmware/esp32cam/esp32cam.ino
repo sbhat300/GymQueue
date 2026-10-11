@@ -17,6 +17,8 @@
 #include <ESPmDNS.h>
 #include "esp_camera.h"
 #include "esp_http_server.h"
+#include "img_converters.h"
+#include "jpeg_frame.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 #include "secrets.h"
@@ -84,6 +86,17 @@
 
 static void statusLed(bool on) { digitalWrite(STATUS_LED_PIN, on ? STATUS_LED_ON : !STATUS_LED_ON); }
 
+// Some kits ship a sensor without a hardware JPEG encoder (e.g. GC2145). Then we capture
+// RGB565 and compress on the ESP32 instead (slower, so at 640x480).
+static bool softJpeg = false;
+#define SOFT_JPEG_QUALITY 80
+// Compressing on the ESP32 takes ~0.5 s per 640x480 frame; 320x240 is ~4x faster and still
+// plenty for someone sitting on the machine. Override in secrets.h if needed.
+#ifndef SOFT_JPEG_FRAMESIZE
+#define SOFT_JPEG_FRAMESIZE FRAMESIZE_QVGA
+#endif
+
+
 static httpd_handle_t mainServer = NULL;
 static httpd_handle_t streamServer = NULL;
 static bool flashOn = false;
@@ -122,42 +135,74 @@ static bool initCamera() {
   }
 
   esp_err_t err = esp_camera_init(&c);
+  if (err == ESP_ERR_NOT_SUPPORTED) {
+    Serial.println("Sensor has no JPEG encoder - capturing RGB565 and compressing on the ESP32");
+    esp_camera_deinit();
+    c.pixel_format = PIXFORMAT_RGB565;
+    c.frame_size = SOFT_JPEG_FRAMESIZE;
+    c.fb_count = psramFound() ? 2 : 1;
+    softJpeg = true;
+    err = esp_camera_init(&c);
+  }
   if (err != ESP_OK) {
     Serial.printf("Camera init failed: 0x%x\n", err);
     return false;
   }
   sensor_t *s = esp_camera_sensor_get();
-  Serial.printf("Camera sensor PID 0x%x (%s), PSRAM %s\n", s->id.PID,
-                s->id.PID == OV3660_PID ? "OV3660" : s->id.PID == OV2640_PID ? "OV2640" : "other",
+  camera_sensor_info_t *info = esp_camera_sensor_get_info(&s->id);
+  Serial.printf("Camera sensor %s (PID 0x%x), %s, PSRAM %s\n", info ? info->name : "unknown", s->id.PID,
+                softJpeg ? "software JPEG" : "hardware JPEG",
                 psramFound() ? "yes" : "NO - check PSRAM board setting");
   bool flip = FLIP_IMAGE;
   if (s->id.PID == OV3660_PID) {      // OV3660 is mounted the other way round and over-saturated
     flip = !flip;
     s->set_saturation(s, -2);
   }
-  s->set_brightness(s, 1);
-  s->set_whitebal(s, 1);
-  s->set_gain_ctrl(s, 1);
-  s->set_exposure_ctrl(s, 1);
-  s->set_aec2(s, 1);                  // better auto-exposure for indoor gym lighting
-  s->set_vflip(s, flip);
+  // not every sensor driver implements every setting - only call the ones that exist
+  if (s->set_brightness) s->set_brightness(s, 1);
+  if (s->set_whitebal) s->set_whitebal(s, 1);
+  if (s->set_gain_ctrl) s->set_gain_ctrl(s, 1);
+  if (s->set_exposure_ctrl) s->set_exposure_ctrl(s, 1);
+  if (s->set_aec2) s->set_aec2(s, 1);  // better auto-exposure for indoor gym lighting
+  if (s->set_vflip) s->set_vflip(s, flip);
   // If the picture is still upside down / mirrored for how you mount it, toggle these:
   // s->set_vflip(s, !flip); s->set_hmirror(s, 1);
   return true;
 }
 
 // ------------------------------------------------------------------ handlers
+static bool grabJpeg(JpegFrame &out) {
+  out.fb = esp_camera_fb_get();
+  if (!out.fb) return false;
+  if (out.fb->format == PIXFORMAT_JPEG) {
+    out.buf = out.fb->buf;
+    out.len = out.fb->len;
+    out.owned = false;
+    return true;
+  }
+  out.owned = true;
+  bool ok = frame2jpg(out.fb, SOFT_JPEG_QUALITY, &out.buf, &out.len);
+  esp_camera_fb_return(out.fb);  // raw frame no longer needed
+  out.fb = NULL;
+  return ok;
+}
+
+static void releaseJpeg(JpegFrame &f) {
+  if (f.owned) free(f.buf);
+  if (f.fb) esp_camera_fb_return(f.fb);
+}
+
 static esp_err_t captureHandler(httpd_req_t *req) {
-  camera_fb_t *fb = esp_camera_fb_get();
-  if (!fb) {
+  JpegFrame f;
+  if (!grabJpeg(f)) {
     httpd_resp_send_500(req);
     return ESP_FAIL;
   }
   httpd_resp_set_type(req, "image/jpeg");
   httpd_resp_set_hdr(req, "Cache-Control", "no-store");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
-  esp_err_t res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-  esp_camera_fb_return(fb);
+  esp_err_t res = httpd_resp_send(req, (const char *)f.buf, f.len);
+  releaseJpeg(f);
   framesServed++;
   return res;
 }
@@ -172,16 +217,16 @@ static esp_err_t streamHandler(httpd_req_t *req) {
   esp_err_t res = httpd_resp_set_type(req, STREAM_CONTENT_TYPE);
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   while (res == ESP_OK) {
-    camera_fb_t *fb = esp_camera_fb_get();
-    if (!fb) {
+    JpegFrame f;
+    if (!grabJpeg(f)) {
       res = ESP_FAIL;
       break;
     }
-    size_t hlen = snprintf(partBuf, sizeof(partBuf), STREAM_PART, fb->len);
+    size_t hlen = snprintf(partBuf, sizeof(partBuf), STREAM_PART, f.len);
     res = httpd_resp_send_chunk(req, STREAM_BOUNDARY, strlen(STREAM_BOUNDARY));
     if (res == ESP_OK) res = httpd_resp_send_chunk(req, partBuf, hlen);
-    if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
-    esp_camera_fb_return(fb);
+    if (res == ESP_OK) res = httpd_resp_send_chunk(req, (const char *)f.buf, f.len);
+    releaseJpeg(f);
     framesServed++;
   }
   return res;  // client disconnected
@@ -239,10 +284,50 @@ static void startServers() {
 }
 
 // ------------------------------------------------------------------ wifi
+static const char *authName(wifi_auth_mode_t m) {
+  switch (m) {
+    case WIFI_AUTH_OPEN: return "open";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2-Enterprise (not supported)";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3";
+    default: return "other";
+  }
+}
+
+// Why the last connection attempt failed, so setup problems are diagnosable from the serial log.
+static void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
+  if (event != ARDUINO_EVENT_WIFI_STA_DISCONNECTED) return;
+  uint8_t r = info.wifi_sta_disconnected.reason;
+  const char *hint = r == WIFI_REASON_NO_AP_FOUND ? "network not found on 2.4 GHz - check the name, or move closer"
+                   : (r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT || r == WIFI_REASON_HANDSHAKE_TIMEOUT)
+                       ? "wrong password (or the router rejected the security mode)"
+                   : r == WIFI_REASON_ASSOC_FAIL ? "router refused the connection (MAC filter / client limit?)" : "";
+  Serial.printf("\nWi-Fi disconnected, reason %u %s\n", r, hint);
+}
+
+static void scanForNetwork() {
+  int n = WiFi.scanNetworks();
+  for (int i = 0; i < n; i++) {
+    if (WiFi.SSID(i) == WIFI_SSID) {
+      Serial.printf("Found network: channel %d, signal %d dBm, security %s\n", WiFi.channel(i), WiFi.RSSI(i),
+                    authName(WiFi.encryptionType(i)));
+      WiFi.scanDelete();
+      return;
+    }
+  }
+  Serial.printf("Network NOT visible on 2.4 GHz (%d networks seen) - name typo, 5 GHz only, or too far\n", n);
+  WiFi.scanDelete();
+}
+
 static void connectWifi() {
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);               // power save adds big latency to every request
   WiFi.setHostname("gymcam-" CAMERA_NAME);
+  WiFi.onEvent(onWifiEvent);
+  scanForNetwork();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.printf("Connecting to %s", WIFI_SSID);
   unsigned long start = millis();
