@@ -26,6 +26,13 @@ def _angle(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
 
 
 @dataclass
+class PressMetrics:
+    elbow_angle: float | None   # degrees, mean over arms with a visible wrist; None if no wrist in view
+    wrist_height: float | None  # hands above shoulders, in shoulder widths
+    elbow_height: float         # elbows above shoulders, in shoulder widths (always in view)
+
+
+@dataclass
 class ShoulderPressCounter:
     up_elbow_deg: float = 150.0
     down_elbow_deg: float = 115.0
@@ -33,35 +40,49 @@ class ShoulderPressCounter:
     # ~1.5-1.7 locked out overhead
     up_wrist_height: float = 1.2
     down_wrist_height: float = 0.9
+    # Close to a webcam the hands leave the top of the frame at lockout. Elbows stay in view:
+    # about level with the shoulders at the bottom, well above them at the top.
+    up_elbow_height: float = 0.6
+    down_elbow_height: float = 0.25
     confirm_frames: int = 2
 
     reps: int = 0
     phase: str = "start"              # start -> down -> up -> down -> ...
     _candidate: str = ""
     _candidate_frames: int = 0
-    last_metrics: tuple[float, float] | None = None
+    last_metrics: PressMetrics | None = None
 
-    def metrics(self, pose: Pose) -> tuple[float, float] | None:
-        """(mean elbow angle, mean wrist height in shoulder widths) over the visible arms."""
+    def metrics(self, pose: Pose) -> PressMetrics | None:
         ls, rs = pose.get("l_shoulder"), pose.get("r_shoulder")
         if ls is None or rs is None:
             return None
         width = max(float(np.linalg.norm(ls - rs)), 1.0)
-        angles, heights = [], []
+        angles, wrist_h, elbow_h = [], [], []
         for shoulder, side in ((ls, "l"), (rs, "r")):
-            elbow, wrist = pose.get(f"{side}_elbow", 0.3), pose.get(f"{side}_wrist", 0.3)
-            if elbow is None or wrist is None:
+            elbow = pose.get(f"{side}_elbow", 0.3)
+            if elbow is None:
                 continue
-            angles.append(_angle(shoulder, elbow, wrist))
-            heights.append((shoulder[1] - wrist[1]) / width)  # image y points down
-        if not angles:
+            elbow_h.append((shoulder[1] - elbow[1]) / width)  # image y points down
+            wrist = pose.get(f"{side}_wrist", 0.3)
+            if wrist is not None:
+                angles.append(_angle(shoulder, elbow, wrist))
+                wrist_h.append((shoulder[1] - wrist[1]) / width)
+        if not elbow_h:
             return None
-        return float(np.mean(angles)), float(np.mean(heights))
+        return PressMetrics(float(np.mean(angles)) if angles else None,
+                            float(np.mean(wrist_h)) if wrist_h else None,
+                            float(np.mean(elbow_h)))
 
-    def classify(self, elbow: float, height: float) -> str:
-        if elbow >= self.up_elbow_deg and height >= self.up_wrist_height:
+    def classify(self, m: PressMetrics) -> str:
+        if m.elbow_angle is not None:
+            if m.elbow_angle >= self.up_elbow_deg and m.wrist_height >= self.up_wrist_height:
+                return "up"
+            if m.elbow_angle <= self.down_elbow_deg and m.wrist_height <= self.down_wrist_height:
+                return "down"
+        # hands out of frame (or arm straight but hands mis-placed): go by the elbows
+        if m.elbow_height >= self.up_elbow_height and (m.elbow_angle is None or m.elbow_angle >= 130):
             return "up"
-        if elbow <= self.down_elbow_deg and height <= self.down_wrist_height:
+        if m.elbow_height <= self.down_elbow_height and (m.elbow_angle is None or m.elbow_angle <= 125):
             return "down"
         return "mid"
 
@@ -71,7 +92,7 @@ class ShoulderPressCounter:
         self.last_metrics = m
         if m is None:
             return False
-        state = self.classify(*m)
+        state = self.classify(m)
         if state == "mid":
             return False
         if state != self._candidate:

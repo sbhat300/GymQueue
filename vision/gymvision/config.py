@@ -52,7 +52,11 @@ class Settings:
     max_rests: int = field(default_factory=lambda: _i("MAX_RESTS", 6))
     unknown_cooldown_s: float = field(default_factory=lambda: _f("UNKNOWN_COOLDOWN_S", 30.0))
     heartbeat_s: float = field(default_factory=lambda: _f("HEARTBEAT_S", 3.0))
-    max_fps: float = field(default_factory=lambda: _f("MAX_FPS", 5.0))
+    max_fps: float = field(default_factory=lambda: _f("MAX_FPS", 5.0))         # face recognition, per camera
+    pose_fps: float = field(default_factory=lambda: _f("POSE_FPS", 15.0))      # rep counting, per camera
+    # CPU threads for the face model. Using every core makes the models fight each other;
+    # 4 measured ~3x faster than the default on a 16-core laptop.
+    ort_threads: int = field(default_factory=lambda: _i("ORT_THREADS", 4))
 
     # --- liveness (anti-spoofing) ---
     liveness: bool = field(default_factory=lambda: os.getenv("LIVENESS", "true").lower() not in ("0", "false", "no", "off"))

@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import deque
 
 import cv2
 import numpy as np
@@ -42,6 +43,10 @@ class MachineWorker:
         self.pose_estimator = None
         self.sets: SetTracker | None = None
         self.last_pose = None
+        self.pose_fps = 0.0
+        self._reps_lock = threading.Lock()  # sets/counter: pose loop vs face loop (user_left)
+        self._tracks: list = []             # latest face tracks, for drawing from the pose loop
+        self.rep_trace: deque = deque(maxlen=600)  # recent counter readings (numbers only) for tuning
         if cam.exercise:
             if cam.exercise not in EXERCISE_LABELS:
                 raise ValueError(f"camera {cam.machine_id}: can't count reps for {cam.exercise!r} "
@@ -53,6 +58,9 @@ class MachineWorker:
     def start(self) -> "MachineWorker":
         self.source.start()
         threading.Thread(target=self._run, name=f"machine:{self.machine_id}", daemon=True).start()
+        if self.sets is not None:
+            # reps need every frame (cheap pose model); faces only need a few per second
+            threading.Thread(target=self._pose_loop, name=f"reps:{self.machine_id}", daemon=True).start()
         return self
 
     def stop(self) -> None:
@@ -130,10 +138,34 @@ class MachineWorker:
         self.unknown_faces = unknown
         with self.lock:
             events = self.presence.observe(now, seen, unknown)
+        self._tracks = tracks
         if self.sets is not None:
-            events += self._count_reps(frame, now, events)
+            with self._reps_lock:
+                left = any(e["type"] == "user_left" and e["user_id"] == self.sets.user_id for e in events)
+                finished = self.sets.finish() if left else None
+            if finished:
+                events.append(self._set_event(finished, now))
         self.sink.emit(events)
-        self._annotate(frame, tracks, now)
+        if self.sets is None:  # exercise cameras are drawn by the faster pose loop
+            self._annotate(frame, tracks, now)
+
+    def _pose_loop(self) -> None:
+        seq, min_dt = -1, 1.0 / settings.pose_fps
+        while not self._stop.is_set():
+            t0 = time.time()
+            seq_new, _, frame = self.source.latest(seq)
+            if frame is None:
+                self._stop.wait(0.01)
+                continue
+            seq = seq_new
+            try:
+                self.sink.emit(self._count_reps(frame, t0))
+                self._annotate(frame, self._tracks, t0)
+            except Exception:
+                log.exception("machine %s: rep counting failed", self.machine_id)
+            dt = time.time() - t0
+            self.pose_fps = 0.8 * self.pose_fps + 0.2 * (1.0 / max(dt, 1e-3))
+            self._stop.wait(max(0.0, min_dt - dt))
 
     def _rep_user(self, now: float) -> str | None:
         """Whoever the camera recognises on this machine right now (most recently seen)."""
@@ -141,7 +173,7 @@ class MachineWorker:
             here = [p for p in self.presence.users.values() if p.confirmed and now - p.last_seen < 3.0]
         return max(here, key=lambda p: p.last_seen).user_id if here else None
 
-    def _count_reps(self, frame: np.ndarray, now: float, presence_events: list[dict]) -> list[dict]:
+    def _count_reps(self, frame: np.ndarray, now: float) -> list[dict]:
         roi = self._roi_px(frame)
         crop = frame[roi[1]:roi[3], roi[0]:roi[2]] if roi else frame
         pose = self.pose_estimator.detect(crop)
@@ -150,14 +182,25 @@ class MachineWorker:
         self.last_pose = pose
         out = []
         user = self._rep_user(now)
-        if self.sets.counter.update(pose):
-            finished = self.sets.add_rep(user, now)
-            if finished:
-                out.append(self._set_event(finished, now))
-            out.append(make_event("rep_counted", self.machine_id, now, user_id=user,
-                                  exercise=self.sets.exercise, reps=self.sets.reps))
-        left = any(e["type"] == "user_left" and e["user_id"] == self.sets.user_id for e in presence_events)
-        finished = self.sets.finish() if left else self.sets.expire(now)
+        with self._reps_lock:
+            counted = self.sets.counter.update(pose)
+            m = self.sets.counter.last_metrics
+            self.rep_trace.append({
+                "t": round(now, 2),
+                "elbow_angle": None if m is None or m.elbow_angle is None else round(m.elbow_angle),
+                "wrist_height": None if m is None or m.wrist_height is None else round(m.wrist_height, 2),
+                "elbow_height": None if m is None else round(m.elbow_height, 2),
+                "state": None if m is None else self.sets.counter.classify(m),
+                "phase": self.sets.counter.phase,
+                "reps": self.sets.reps + (1 if counted else 0),
+            })
+            if counted:
+                finished = self.sets.add_rep(user, now)
+                if finished:
+                    out.append(self._set_event(finished, now))
+                out.append(make_event("rep_counted", self.machine_id, now, user_id=self.sets.user_id,
+                                      exercise=self.sets.exercise, reps=self.sets.reps))
+            finished = self.sets.expire(now)
         if finished:
             out.append(self._set_event(finished, now))
         return out
@@ -178,9 +221,13 @@ class MachineWorker:
 
     def status(self) -> dict:
         hb = self.heartbeat(time.time())
-        return {"machine_id": self.machine_id, "name": self.cam.name, "source": self.cam.source,
-                "camera_online": hb["camera_online"], "camera_error": self.source.last_error,
-                "fps": hb["fps"], "users": hb["users"]}
+        out = {"machine_id": self.machine_id, "name": self.cam.name, "source": self.cam.source,
+               "camera_online": hb["camera_online"], "camera_error": self.source.last_error,
+               "fps": hb["fps"], "users": hb["users"]}
+        if self.sets is not None:
+            out["pose_fps"] = round(self.pose_fps, 1)
+            out["reps_in_set"] = self.sets.reps
+        return out
 
     def _annotate(self, frame: np.ndarray, tracks, now: float) -> None:
         img = frame.copy()
@@ -202,7 +249,8 @@ class MachineWorker:
         with self.lock:
             snap = self.presence.snapshot(now)
         y = 22
-        cv2.putText(img, f"{self.cam.name or self.machine_id}  {self.fps:.1f} fps", (8, y),
+        speed = f"{self.fps:.1f} fps faces" + (f", {self.pose_fps:.0f} fps reps" if self.sets is not None else "")
+        cv2.putText(img, f"{self.cam.name or self.machine_id}  {speed}", (8, y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         for u in snap:
             y += 22
@@ -234,7 +282,9 @@ class MachineWorker:
                     (255, 160, 60), 2)
         m = self.sets.counter.last_metrics
         if m:
-            cv2.putText(img, f"elbow {m[0]:.0f} deg, hands {m[1]:+.1f} shoulder widths up  [{self.sets.counter.phase}]",
+            arm = (f"elbow {m.elbow_angle:.0f} deg, hands {m.wrist_height:+.1f}" if m.elbow_angle is not None
+                   else "hands out of view")
+            cv2.putText(img, f"{arm}, elbows {m.elbow_height:+.1f} shoulder widths up  [{self.sets.counter.phase}]",
                         (8, y + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 160, 60), 1)
 
     def latest_jpeg(self) -> tuple[int, bytes | None]:

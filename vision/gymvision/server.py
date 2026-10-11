@@ -163,6 +163,22 @@ def machine_stream(machine_id: str):
     return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 
+@app.get("/machines/{machine_id}/reps-trace", dependencies=auth)
+def reps_trace(machine_id: str, seconds: float = 30.0):
+    """What the rep counter measured each frame (numbers only, no images) - for tuning thresholds."""
+    w = worker(machine_id)
+    if w.sets is None:
+        raise HTTPException(404, "this camera doesn't count reps")
+    since = time.time() - seconds
+    c = w.sets.counter
+    return {
+        "thresholds": {"up": f"elbow >= {c.up_elbow_deg} deg and hands >= {c.up_wrist_height}, or elbows >= {c.up_elbow_height}",
+                       "down": f"elbow <= {c.down_elbow_deg} deg and hands <= {c.down_wrist_height}, or elbows <= {c.down_elbow_height}"},
+        "pose_fps": round(w.pose_fps, 1),
+        "frames": [f for f in list(w.rep_trace) if f["t"] >= since],
+    }
+
+
 @app.get("/events/recent", dependencies=auth)
 def recent_events(limit: int = 50, include_heartbeats: bool = False):
     evs = [e for e in S.sink.recent if include_heartbeats or e["type"] != "heartbeat"]

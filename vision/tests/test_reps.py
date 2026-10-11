@@ -8,7 +8,7 @@ import numpy as np
 SHOULDER_W = 100.0
 
 
-def press_pose(t: float, visible: bool = True, wobble: float = 0.0) -> Pose:
+def press_pose(t: float, visible: bool = True, wobble: float = 0.0, hands_visible: bool = True) -> Pose:
     """Synthetic person pressing: t=0 bottom (elbows ~90 deg, hands at ear height), t=1 locked out."""
     ls, rs = np.array([250.0, 300.0]), np.array([350.0, 300.0])
     pts = {"nose": (300, 240, 1), "l_hip": (260, 500, 1), "r_hip": (340, 500, 1)}
@@ -21,7 +21,7 @@ def press_pose(t: float, visible: bool = True, wobble: float = 0.0) -> Pose:
             wrist = sh + np.array([out * 20, -170])
         pts[f"{side}_shoulder"] = (*sh, 1.0)
         pts[f"{side}_elbow"] = (*elbow, 1.0 if visible else 0.1)
-        pts[f"{side}_wrist"] = (*wrist, 1.0 if visible else 0.1)
+        pts[f"{side}_wrist"] = (*wrist, 1.0 if visible and hands_visible else 0.1)
     return Pose(pts)
 
 
@@ -38,8 +38,8 @@ def reps_motion(n: int, frames_per_rep: int = 12):
 
 def test_pose_geometry_classifies_bottom_and_top():
     c = ShoulderPressCounter()
-    assert c.classify(*c.metrics(press_pose(0.0))) == "down"
-    assert c.classify(*c.metrics(press_pose(1.0))) == "up"
+    assert c.classify(c.metrics(press_pose(0.0))) == "down"
+    assert c.classify(c.metrics(press_pose(1.0))) == "up"
 
 
 def test_counts_each_full_rep():
@@ -58,6 +58,13 @@ def test_starting_with_arms_up_waits_for_a_full_rep():
     c = ShoulderPressCounter()
     assert run(c, [1.0, 1.0, 1.0]) == 0
     assert run(c, [0.0, 0.0, 0.0, 1.0, 1.0]) == 1
+
+
+def test_counts_reps_with_hands_out_of_frame():
+    """Close to a webcam the hands leave the top of the picture at lockout - go by the elbows."""
+    c = ShoulderPressCounter()
+    reps = sum(c.update(press_pose(t, hands_visible=t < 0.6)) for t in reps_motion(4))
+    assert reps == 4
 
 
 def test_single_bad_frame_is_ignored():

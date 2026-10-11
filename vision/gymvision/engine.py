@@ -87,10 +87,16 @@ class FaceEngine:
         from insightface.app import FaceAnalysis  # heavy import, keep it lazy
 
         log.info("loading InsightFace model %s (first run downloads it to ~/.insightface)", model_name)
+        import onnxruntime as ort
+
+        sess_options = ort.SessionOptions()
+        if settings.ort_threads > 0:
+            sess_options.intra_op_num_threads = settings.ort_threads
         self._app = FaceAnalysis(
             name=model_name,
             allowed_modules=["detection", "recognition"],
             providers=["CPUExecutionProvider"],
+            sess_options=sess_options,
         )
         self._app.prepare(ctx_id=-1, det_size=(det_size, det_size))
         self._lock = threading.Lock()
