@@ -18,6 +18,7 @@ from app.stats.service import sampler_loop
 from app.users.router import router as users_router
 from app.vision.enroll_router import router as vision_enroll_router
 from app.vision.router import router as vision_router
+from app.workouts.router import router as workouts_router
 from app.ws.manager import manager
 from app.ws.router import router as ws_router
 
@@ -60,6 +61,7 @@ app.include_router(vision_router)
 app.include_router(vision_enroll_router)
 app.include_router(ws_router)
 app.include_router(stats_router)
+app.include_router(workouts_router)
 
 
 @app.get("/health")

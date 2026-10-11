@@ -29,6 +29,8 @@ class CameraConfig:
     # Only this region is searched: faces there are effectively zoomed in (recognised from further
     # away) and people walking past in the background are ignored.
     roi: list[float] | None = None
+    # Optional exercise to count reps for on this machine (currently "shoulder_press").
+    exercise: str | None = None
 
 
 @dataclass

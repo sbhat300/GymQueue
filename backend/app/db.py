@@ -51,3 +51,9 @@ async def _create_indexes(db: AsyncIOMotorDatabase) -> None:
 
     await db.machine_samples.create_index([("machine_id", 1), ("at", 1)])
     await db.machine_samples.create_index("at", expireAfterSeconds=90 * 24 * 3600, name="samples_ttl")
+
+    await db.workout_entries.create_index([("user_id", 1), ("day", 1)])
+    await db.workout_entries.create_index(
+        "vision_event_id", unique=True, partialFilterExpression={"vision_event_id": {"$type": "string"}},
+        name="one_entry_per_vision_event",
+    )

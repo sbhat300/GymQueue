@@ -91,3 +91,20 @@ export interface MachineStats extends MachineNow {
   includes_demo_data: boolean;
   leaves_at: string | null; // set only when you're active here and currently off camera
 }
+
+export interface Exercise {
+  key: string;
+  label: string;
+  camera_only: boolean; // reps only come from the machine camera (shoulder press)
+}
+
+export interface WorkoutEntry {
+  id: string;
+  exercise: string;
+  exercise_label: string;
+  reps: number;
+  weight_lbs: number | null;
+  source: "manual" | "camera";
+  machine_name: string | null;
+  created_at: string;
+}

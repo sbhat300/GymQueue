@@ -126,6 +126,24 @@ Per machine, every processed frame:
 - **unknown face** persistently at the machine → `unknown_face` (rate-limited).
 - **camera offline** → `camera_offline`; that time is *not* counted as the user being away.
 
+## Rep counting (shoulder press)
+
+Add `"exercise": "shoulder_press"` to a camera in your cameras file:
+```json
+{"machine_id": "<Shoulder Press id>", "name": "Shoulder Press", "source": "esp32:http://127.0.0.1:8081", "exercise": "shoulder_press"}
+```
+That camera then also runs a body-pose model (MediaPipe Pose, ~40 ms per frame; the 6 MB model
+downloads to `data/models/` on first use). A rep = arms go from bent with hands around ear height
+to straight with hands well overhead, each held for 2 frames. Reps go to whoever the camera
+recognises on the machine; a set ends after 15 s without a rep or when they walk away.
+
+Events: `rep_counted` (`user_id`, `exercise`, `reps` so far) on every rep, and `set_completed`
+(`user_id`, `exercise`, `reps`, `started_at`, `ended_at`) at the end of a set. The backend logs
+the set in that user's workout for the day; shoulder press reps can only come from the camera.
+
+Camera placement matters: the person's shoulders, elbows and wrists must be in view (front-on,
+waist up). The live view draws the arms and shows the elbow angle and hand height it's reading.
+
 ## Interface with the backend
 
 ### Events this service sends

@@ -11,7 +11,8 @@ from bson.errors import InvalidId
 from fastapi import HTTPException
 
 from app.models.common import EventType, QueueState
-from app.notifications.service import notify_users
+from app.notifications.service import notify_users, send_live
+from app.workouts import service as workouts
 from app.queue import service as queue_service
 from app.queue.service import LIVE_STATE_VALUES
 from app.vision.schemas import VisionEvent
@@ -128,10 +129,32 @@ async def _on_rest_ended(db, manager: ConnectionManager, user_id: ObjectId, mach
     await queue_service.return_from_rest(db, manager, entry["_id"], user_id)
 
 
+async def _on_rep_counted(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
+    """Live rep count for the person on the machine (not stored - the finished set is)."""
+    machine = await db.machines.find_one({"_id": machine_id})
+    await send_live(manager, [str(user_id)], EventType.REP_COUNTED, {
+        "machine_id": str(machine_id),
+        "machine_name": machine["name"] if machine else None,
+        "exercise": getattr(event, "exercise", None),
+        "reps": getattr(event, "reps", 0),
+    })
+
+
+async def _on_set_completed(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
+    """A set the camera counted goes into the user's workout for today."""
+    entry = await workouts.add_camera_set(
+        db, user_id, machine_id, getattr(event, "exercise", ""), int(getattr(event, "reps", 0) or 0), event.id
+    )
+    if entry is not None:
+        await send_live(manager, [str(user_id)], EventType.WORKOUT_LOGGED, entry)
+
+
 _HANDLERS = {
     "user_arrived": _on_user_arrived,
     "user_left": _on_user_left,
     "rest_ended": _on_rest_ended,
+    "rep_counted": _on_rep_counted,
+    "set_completed": _on_set_completed,
 }
 
 

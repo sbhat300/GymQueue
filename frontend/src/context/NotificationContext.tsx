@@ -139,6 +139,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         pushToast({ title: "Rest period expired", body: "You didn't return in time — the machine is wrapping up your turn.", variant: "warning" });
         break;
       }
+      case "workout_logged": {
+        const data = event.data as { exercise_label?: string; reps?: number };
+        pushToast({
+          title: "Set saved",
+          body: `${data.exercise_label ?? "Set"}: ${data.reps ?? 0} reps, counted by the camera. See it in your Workout tab.`,
+          variant: "success",
+        });
+        break;
+      }
       case "not_your_machine": {
         const data = event.data as { machine_name?: string; reason?: string };
         const name = data.machine_name ?? "This machine";

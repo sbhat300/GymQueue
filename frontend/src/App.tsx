@@ -9,6 +9,7 @@ import { HomePage } from "./pages/HomePage";
 import { MachineListPage } from "./pages/MachineListPage";
 import { MachineDetailPage } from "./pages/MachineDetailPage";
 import { AccountPage } from "./pages/AccountPage";
+import { WorkoutPage } from "./pages/WorkoutPage";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/campuses/:campusId" element={<MachineListPage />} />
               <Route path="/machines/:machineId" element={<MachineDetailPage />} />
+              <Route path="/workout" element={<WorkoutPage />} />
             </Route>
           </Route>
         </Route>

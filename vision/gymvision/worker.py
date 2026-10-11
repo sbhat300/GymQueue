@@ -13,6 +13,8 @@ from .config import CameraConfig, settings
 from .engine import FaceEngine
 from .events import EventSink, make_event
 from .gallery import Gallery
+from .pose import SKELETON
+from .reps import EXERCISE_LABELS, SetTracker
 from .tracker import UNKNOWN, FaceTracker, PresenceTracker
 
 log = logging.getLogger(__name__)
@@ -36,6 +38,17 @@ class MachineWorker:
         self._jpeg: bytes | None = None
         self._jpeg_seq = 0
         self._stop = threading.Event()
+        # rep counting, only on machines with an exercise configured
+        self.pose_estimator = None
+        self.sets: SetTracker | None = None
+        self.last_pose = None
+        if cam.exercise:
+            if cam.exercise not in EXERCISE_LABELS:
+                raise ValueError(f"camera {cam.machine_id}: can't count reps for {cam.exercise!r} "
+                                 f"(supported: {', '.join(EXERCISE_LABELS)})")
+            from .pose import PoseEstimator
+            self.pose_estimator = PoseEstimator()
+            self.sets = SetTracker(cam.exercise)
 
     def start(self) -> "MachineWorker":
         self.source.start()
@@ -45,6 +58,8 @@ class MachineWorker:
     def stop(self) -> None:
         self._stop.set()
         self.source.stop()
+        if self.pose_estimator is not None:
+            self.pose_estimator.close()
 
     # ---------------------------------------------------------------- loop
     def _run(self) -> None:
@@ -115,8 +130,42 @@ class MachineWorker:
         self.unknown_faces = unknown
         with self.lock:
             events = self.presence.observe(now, seen, unknown)
+        if self.sets is not None:
+            events += self._count_reps(frame, now, events)
         self.sink.emit(events)
         self._annotate(frame, tracks, now)
+
+    def _rep_user(self, now: float) -> str | None:
+        """Whoever the camera recognises on this machine right now (most recently seen)."""
+        with self.lock:
+            here = [p for p in self.presence.users.values() if p.confirmed and now - p.last_seen < 3.0]
+        return max(here, key=lambda p: p.last_seen).user_id if here else None
+
+    def _count_reps(self, frame: np.ndarray, now: float, presence_events: list[dict]) -> list[dict]:
+        roi = self._roi_px(frame)
+        crop = frame[roi[1]:roi[3], roi[0]:roi[2]] if roi else frame
+        pose = self.pose_estimator.detect(crop)
+        if pose is not None and roi:  # back to full-frame coordinates for drawing
+            pose.points = {k: (x + roi[0], y + roi[1], v) for k, (x, y, v) in pose.points.items()}
+        self.last_pose = pose
+        out = []
+        user = self._rep_user(now)
+        if self.sets.counter.update(pose):
+            finished = self.sets.add_rep(user, now)
+            if finished:
+                out.append(self._set_event(finished, now))
+            out.append(make_event("rep_counted", self.machine_id, now, user_id=user,
+                                  exercise=self.sets.exercise, reps=self.sets.reps))
+        left = any(e["type"] == "user_left" and e["user_id"] == self.sets.user_id for e in presence_events)
+        finished = self.sets.finish() if left else self.sets.expire(now)
+        if finished:
+            out.append(self._set_event(finished, now))
+        return out
+
+    def _set_event(self, finished: dict, now: float) -> dict:
+        log.info("machine %s: set done - %s x%d for %s", self.machine_id, finished["exercise"],
+                 finished["reps"], finished["user_id"] or "unrecognised person")
+        return make_event("set_completed", self.machine_id, now, **finished)
 
     # ---------------------------------------------------------------- status / debug view
     def heartbeat(self, now: float) -> dict:
@@ -166,9 +215,27 @@ class MachineWorker:
                 state = "present"
             cv2.putText(img, f"{who}: {state}  (rests {u['rests_used']}/{self.presence.max_rests})",
                         (8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
+        if self.sets is not None:
+            self._draw_reps(img, y + 30)
         ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 75])
         if ok:
             self._jpeg, self._jpeg_seq = buf.tobytes(), self._jpeg_seq + 1
+
+    def _draw_reps(self, img: np.ndarray, y: int) -> None:
+        pose = self.last_pose
+        if pose is not None:
+            for a, b in SKELETON:
+                pa, pb = pose.get(a, 0.3), pose.get(b, 0.3)
+                if pa is not None and pb is not None:
+                    cv2.line(img, tuple(int(v) for v in pa), tuple(int(v) for v in pb), (255, 160, 60), 3)
+        label = EXERCISE_LABELS[self.sets.exercise]
+        who = (self.gallery.label(self.sets.user_id) or self.sets.user_id[:8]) if self.sets.user_id else ""
+        cv2.putText(img, f"{label}: {self.sets.reps} reps {who}", (8, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
+                    (255, 160, 60), 2)
+        m = self.sets.counter.last_metrics
+        if m:
+            cv2.putText(img, f"elbow {m[0]:.0f} deg, hands {m[1]:+.1f} shoulder widths up  [{self.sets.counter.phase}]",
+                        (8, y + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 160, 60), 1)
 
     def latest_jpeg(self) -> tuple[int, bytes | None]:
         return self._jpeg_seq, self._jpeg

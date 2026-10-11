@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ToastStack } from "./ToastStack";
 import { initials } from "../utils/format";
@@ -6,6 +6,8 @@ import { initials } from "../utils/format";
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const onWorkout = pathname.startsWith("/workout");
 
   function handleLogout() {
     logout();
@@ -25,6 +27,16 @@ export function Layout() {
           </span>
           <span className="brand-name">GymQueue</span>
         </Link>
+        {user?.face_enrolled && (
+          <nav className="topbar-nav" aria-label="Main">
+            <Link to="/" className={onWorkout ? "" : "is-active"} aria-current={onWorkout ? undefined : "page"}>
+              Gyms
+            </Link>
+            <Link to="/workout" className={onWorkout ? "is-active" : ""} aria-current={onWorkout ? "page" : undefined}>
+              Workout
+            </Link>
+          </nav>
+        )}
         {user && (
           <div className="topbar-user">
             <span className="avatar avatar-sm" aria-hidden="true">

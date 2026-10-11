@@ -1002,7 +1002,8 @@ h3 {
 }
 
 .faceid-tick.is-target {
-  stroke: var(--primary-2);
+  stroke: var(--primary);
+  opacity: 0.7;
   animation: faceid-pulse 1.4s ease-in-out infinite;
 }
 
@@ -1112,4 +1113,150 @@ h3 {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+/* ---------- main nav ---------- */
+.topbar-nav {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+  margin-left: 24px;
+}
+
+.topbar-nav a {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.topbar-nav a:hover {
+  color: var(--text);
+}
+
+.topbar-nav a.is-active {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+/* ---------- workout ---------- */
+.live-reps {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-primary);
+}
+
+.live-reps-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: faceid-pulse 1.2s ease-in-out infinite;
+}
+
+.live-reps-label {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.live-reps-count {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.live-reps-count span {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.workout-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+
+.workout-form-row .filter {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.workout-num {
+  width: 110px;
+}
+
+.workout-group {
+  padding-bottom: 8px;
+}
+
+.workout-set {
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.workout-set-num {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.workout-set-reps {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.workout-source {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.workout-source.is-camera {
+  color: var(--primary);
+}
+
+.workout-delete {
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-reps-dot {
+    animation: none;
+  }
+}
+
+.topbar-user .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .topbar-nav {
+    margin-left: 10px;
+  }
+  .topbar-user .avatar {
+    display: none;
+  }
+  .topbar-user .topbar-account {
+    display: none;
+  }
 }

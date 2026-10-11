@@ -45,6 +45,8 @@ class EventType(StrEnum):
     JOIN_REQUEST_CANCELLED = "join_request_cancelled"
     QUEUE_UPDATED = "queue_updated"
     NOT_YOUR_MACHINE = "not_your_machine"
+    REP_COUNTED = "rep_counted"
+    WORKOUT_LOGGED = "workout_logged"
 
 
 def oid(value: str, field: str = "id") -> ObjectId:

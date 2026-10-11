@@ -37,6 +37,16 @@ async def notify_users(
     await manager.send_to_users(user_ids, event)
 
 
+async def send_live(
+    manager: ConnectionManager,
+    user_ids: list[str],
+    event_type: EventType,
+    payload: dict,
+) -> None:
+    """Push to the user's open app without storing a notification (e.g. a live rep count)."""
+    await manager.send_to_users(user_ids, _event_envelope(event_type, payload, datetime.now(timezone.utc)))
+
+
 async def broadcast_queue_updated(manager: ConnectionManager, machine_id: str) -> None:
     now = datetime.now(timezone.utc)
     event = _event_envelope(EventType.QUEUE_UPDATED, {"machine_id": machine_id}, now)
