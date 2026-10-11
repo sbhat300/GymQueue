@@ -79,9 +79,14 @@ app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "*").
                    allow_methods=["*"], allow_headers=["*"])
 
 
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
 def require_key(request: Request) -> None:
     if not settings.api_key:
         return
+    if settings.localhost_skips_key and request.client and request.client.host in LOOPBACK:
+        return  # this laptop itself; other devices on the network still need the key
     auth = request.headers.get("authorization", "")
     given = (auth[7:] if auth.lower().startswith("bearer ") else "") \
         or request.headers.get("x-api-key", "") or request.query_params.get("key", "")

@@ -49,7 +49,7 @@ at a machine in `cameras.json` (machine ids: `PYTHONPATH= .venv/bin/python scrip
 ```
 Restart `./run.sh`, join Bench Press 1's queue, and sit in front of the camera: you're
 checked in. Walk away and your turn wraps up ~15 s later.
-Annotated live view: http://localhost:8001/machines/<machine id>/stream
+Annotated live view: http://localhost:8001/machines/<machine id>/stream (no key needed on this laptop)
 
 The face model (~280 MB) downloads to `~/.insightface` on first use.
 
@@ -157,7 +157,10 @@ waist up). The live view draws the arms and shows the elbow angle and hand heigh
 
 ### This service's own API
 Auth: `Authorization: Bearer {VISION_API_KEY}` (or `X-API-Key`, or `?key=` for `<img>` tags).
-Empty `VISION_API_KEY` = open, for local dev.
+Requests from the laptop running the service (localhost) don't need it, so the live view just
+opens; other devices do. Set `LOCALHOST_SKIPS_KEY=false` if you expose the service through a
+tunnel (ngrok etc.), since tunnelled traffic also looks like localhost. Empty `VISION_API_KEY` =
+open to everyone, for local dev only.
 
 ```
 POST   /enroll/start           {"user_id": "..."}        guided face scan (the app's /setup-face page, via the backend)

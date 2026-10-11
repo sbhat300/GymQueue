@@ -74,6 +74,11 @@ class Settings:
 
     # --- this service's own API ---
     api_key: str = field(default_factory=lambda: os.getenv("VISION_API_KEY", ""))
+    # Requests from this laptop itself (localhost) don't need the key, so the live view opens
+    # without ?key=. Turn OFF if you put the service behind a tunnel (ngrok, cloudflared, ...):
+    # tunnelled internet traffic also arrives from localhost.
+    localhost_skips_key: bool = field(
+        default_factory=lambda: os.getenv("LOCALHOST_SKIPS_KEY", "true").lower() not in ("0", "false", "no", "off"))
     cameras_file: str = field(default_factory=lambda: os.getenv("CAMERAS_FILE", str(ROOT / "cameras.json")))
 
     def cameras(self) -> list[CameraConfig]:
