@@ -5,27 +5,24 @@ from datetime import datetime, timezone
 from app.db import close_db, connect_db, get_db
 
 CAMPUSES = [
-    {"name": "North Campus Rec Center", "slug": "north-campus"},
-    {"name": "South Campus Fitness Center", "slug": "south-campus"},
+    {"name": "Sonny Werblin Recreation Center (Busch Campus)", "slug": "busch"},
+    {"name": "College Avenue Gym (College Ave Campus)", "slug": "college-ave"},
+    {"name": "Livingston Recreation Center (Livingston Campus)", "slug": "livingston"},
+    {"name": "Cook/Douglass Recreation Center (Cook/Douglass Campus)", "slug": "cook-douglass"},
+    {"name": "Rutgers Fitness Center (Easton Avenue)", "slug": "easton-avenue"},
 ]
 
-MACHINES_BY_CAMPUS_SLUG = {
-    "north-campus": [
-        {"name": "Squat Rack 1", "category": "squat_rack"},
-        {"name": "Squat Rack 2", "category": "squat_rack"},
-        {"name": "Bench Press 1", "category": "bench"},
-        {"name": "Bench Press 2", "category": "bench"},
-        {"name": "Treadmill 1", "category": "cardio"},
-        {"name": "Lat Pulldown", "category": "machine"},
-    ],
-    "south-campus": [
-        {"name": "Squat Rack A", "category": "squat_rack"},
-        {"name": "Bench Press A", "category": "bench"},
-        {"name": "Leg Press", "category": "machine"},
-        {"name": "Rowing Machine 1", "category": "cardio"},
-        {"name": "Cable Crossover", "category": "machine"},
-    ],
-}
+COMMON_MACHINES = [
+    {"name": "Squat Rack 1", "category": "squat_rack"},
+    {"name": "Bench Press 1", "category": "bench"},
+    {"name": "Shoulder Press", "category": "shoulder_press"},
+    {"name": "Leg Press", "category": "machine"},
+    {"name": "Lat Pulldown", "category": "machine"},
+    {"name": "Cable Crossover", "category": "machine"},
+    {"name": "Treadmill 1", "category": "cardio"},
+]
+
+MACHINES_BY_CAMPUS_SLUG: dict[str, list[dict]] = {campus["slug"]: COMMON_MACHINES for campus in CAMPUSES}
 
 
 async def seed() -> None:

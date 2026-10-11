@@ -1,3 +1,3 @@
 [
-  {"machine_id": "6aca76094c8f7df6ea60b90e", "name": "Bench Press 1", "source": "esp32:http://127.0.0.1:8081"}
+  {"machine_id": "6acae3664c8f7df6ea61c9bf", "name": "Shoulder Press (Busch)", "source": "esp32:http://127.0.0.1:8081"}
 ]
