@@ -27,3 +27,12 @@ export function formatHour(hour: number, short = false): string {
   const h = hour % 12 === 0 ? 12 : hour % 12;
   return `${h}${suffix}`;
 }
+
+/** "Alice", "Alice & Bob", "Alice, Bob & 2 unrecognized", "Camera: empty". */
+export function formatCameraPeople(names: string[], unknownCount: number): string {
+  if (names.length === 0 && unknownCount === 0) return "Camera: empty";
+  const parts = [...names];
+  if (unknownCount > 0) parts.push(unknownCount === 1 ? "1 unrecognized" : `${unknownCount} unrecognized`);
+  if (parts.length === 1) return `On camera: ${parts[0]}`;
+  return `On camera: ${parts.slice(0, -1).join(", ")} & ${parts[parts.length - 1]}`;
+}

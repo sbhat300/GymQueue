@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     max_rest_period_seconds: int = 300                 # hard cap, regardless of per-machine override
     default_max_rests: int = 6
 
+    # ---- "working in" (sharing one queue slot/turn) ----
+    default_max_group_size: int = 4   # how many people can share one slot: 1 owner + up to 3 who work in
+
     scheduler_interval_seconds: float = 2.0
 
     cors_allowed_origins: str = "http://localhost:5173"
@@ -31,6 +34,7 @@ class Settings(BaseSettings):
     stats_sample_interval_seconds: float = 60.0
     stats_turn_min_minutes: int = 10   # every turn on a machine is assumed to take 10-15 min
     stats_turn_max_minutes: int = 15
+    stats_extra_minutes_per_partner: int = 5   # added per extra person sharing a turn (working in slows a set down a little, but a group doesn't take a whole separate turn each)
 
     @property
     def cors_origins_list(self) -> list[str]:

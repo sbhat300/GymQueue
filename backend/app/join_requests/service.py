@@ -4,10 +4,15 @@ from bson import ObjectId
 from fastapi import HTTPException, status
 from pymongo import ReturnDocument
 
+from app.config import settings
 from app.models.common import EventType, JoinRequestStatus
 from app.notifications.service import broadcast_queue_updated, notify_users
 from app.queue.service import LIVE_STATE_VALUES, get_entry_or_404
 from app.ws.manager import ConnectionManager
+
+
+def _max_group_size(machine: dict | None) -> int:
+    return (machine or {}).get("max_group_size") or settings.default_max_group_size
 
 
 async def create_join_request(
@@ -16,7 +21,8 @@ async def create_join_request(
     entry = await get_entry_or_404(db, entry_id)
     if entry["machine_id"] != machine_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Queue entry not found on this machine")
-    if entry["state"] not in LIVE_STATE_VALUES or len(entry["user_ids"]) != 1:
+    machine = await db.machines.find_one({"_id": machine_id})
+    if entry["state"] not in LIVE_STATE_VALUES or len(entry["user_ids"]) >= _max_group_size(machine):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This queue slot can't accept a partner request right now")
 
     target_id = entry["user_ids"][0]
@@ -79,13 +85,14 @@ async def accept_join_request(db, manager: ConnectionManager, request_id: Object
 
     now = datetime.now(timezone.utc)
     entry = await get_entry_or_404(db, req["queue_entry_id"])
+    machine = await db.machines.find_one({"_id": entry["machine_id"]})
 
     updated_entry = await db.queue_entries.find_one_and_update(
         {
             "_id": entry["_id"],
             "state": {"$in": LIVE_STATE_VALUES},
             "version": entry["version"],
-            "user_ids": {"$size": 1},
+            "$expr": {"$lt": [{"$size": "$user_ids"}, _max_group_size(machine)]},
         },
         {"$push": {"user_ids": req["requester_id"]}, "$inc": {"version": 1}, "$set": {"updated_at": now}},
         return_document=ReturnDocument.AFTER,

@@ -31,12 +31,20 @@ def test_each_turn_ahead_adds_10_to_15_minutes():
     assert (join, turns) == ([1800, 2700], 3)
 
 
-def test_partners_share_one_turn():
-    owner = entry("active", 20, users=2)    # pair working in together
+def test_partners_share_one_turn_but_add_a_bit_of_time():
+    owner = entry("active", 20, users=2)    # pair working in together: one turn + 5 min extra
     pair = entry("waiting", 10, users=2)
     waits, join, turns = stats.estimate_waits([owner, pair])
-    assert waits[str(pair["_id"])] == [600, 900]
+    assert waits[str(pair["_id"])] == [900, 1200]    # 600+300, 900+300
     assert turns == 2
+    assert join == [1800, 2400]                      # owner's turn + pair's own (each +300)
+
+
+def test_bigger_group_adds_more_time():
+    owner = entry("active", 20, users=4)    # 3 partners working in -> 3x the extra-per-partner bump
+    waits, join, turns = stats.estimate_waits([owner])
+    assert join == [600 + 3 * 300, 900 + 3 * 300]
+    assert turns == 1
 
 
 def test_idle_machine_has_no_wait():
@@ -96,8 +104,31 @@ async def test_machine_stats_endpoint(client, machine):
     assert body["entry_wait_seconds"][bob_entry] == [600, 900]
     assert body["estimated_wait_seconds"] == [1200, 1800]
     assert body["turn_seconds"] == [600, 900]
+    assert body["extra_seconds_per_partner"] == 300
     assert len(body["busy_today"]) == 24
     assert body["includes_demo_data"] is False
+
+
+async def test_camera_people_shows_recognized_names_and_unknown_count(client, machine):
+    mid = machine["machine_id"]
+    alice = await signup(client, "alice", "Alice")
+    bob = await signup(client, "bob", "Bob")
+    vision_service._last_heartbeat[mid] = (
+        time.monotonic(), {alice["user"]["id"], bob["user"]["id"]}, 2, {},
+    )
+
+    body = (await client.get(f"/machines/{mid}/stats", headers=alice["headers"])).json()
+    assert body["people_on_camera"] == 4  # 2 recognized + 2 unknown faces
+    assert {p["display_name"] for p in body["camera_people"]} == {"Alice", "Bob"}
+    assert body["camera_unknown_count"] == 2
+
+
+async def test_camera_people_is_none_without_a_live_camera(client, machine):
+    alice = await signup(client, "alice", "Alice")
+    body = (await client.get(f"/machines/{machine['machine_id']}/stats", headers=alice["headers"])).json()
+    assert body["people_on_camera"] is None
+    assert body["camera_people"] is None
+    assert body["camera_unknown_count"] is None
 
 
 async def test_leaves_at_set_only_while_active_and_off_camera(client, machine):

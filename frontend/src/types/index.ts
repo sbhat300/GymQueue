@@ -21,6 +21,7 @@ export interface Machine {
   grace_period_seconds: number;
   rest_period_seconds: number;
   max_rests: number;
+  max_group_size: number; // how many people can share one queue slot/turn
 }
 
 export type QueueState = "waiting" | "grace" | "active" | "resting" | "done" | "removed";
@@ -73,15 +74,23 @@ export interface BusyHour {
 /** [min, max] seconds - every turn is assumed to take 10-15 min */
 export type WaitRange = [number, number];
 
+export interface CameraPerson {
+  user_id: string;
+  display_name: string;
+}
+
 export interface MachineNow {
   machine_id: string;
   in_use: boolean;
   queue_length: number; // entries waiting
   people_in_queue: number; // everyone on the machine + waiting, partners counted individually
   people_on_camera: number | null; // null = no live camera on this machine
+  camera_people: CameraPerson[] | null; // recognized faces on camera right now; null = no live camera
+  camera_unknown_count: number | null; // unrecognized faces on camera right now; null = no live camera
   turns_ahead: number;
   estimated_wait_seconds: WaitRange;
   turn_seconds: WaitRange;
+  extra_seconds_per_partner: number; // added to a turn's duration per extra person working in
 }
 
 export interface MachineStats extends MachineNow {

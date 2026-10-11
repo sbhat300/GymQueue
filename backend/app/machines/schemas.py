@@ -11,4 +11,5 @@ def machine_to_public(doc: dict) -> dict:
         "grace_period_seconds": doc.get("grace_period_seconds") or settings.default_grace_period_seconds,
         "rest_period_seconds": doc.get("rest_period_seconds") or settings.default_rest_period_seconds,
         "max_rests": doc.get("max_rests") or settings.default_max_rests,
+        "max_group_size": doc.get("max_group_size") or settings.default_max_group_size,
     }

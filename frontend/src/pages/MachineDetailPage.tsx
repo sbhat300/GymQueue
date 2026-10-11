@@ -13,7 +13,7 @@ import { CheckInPanel } from "../components/CheckInPanel";
 import { RestControls } from "../components/RestControls";
 import { JoinRequestModal } from "../components/JoinRequestModal";
 import { BusyTimesChart } from "../components/BusyTimesChart";
-import { formatWaitRange } from "../utils/format";
+import { formatCameraPeople, formatWaitRange } from "../utils/format";
 import { useCountdown } from "../hooks/useCountdown";
 
 const STATS_REFRESH_MS = 30_000;
@@ -175,7 +175,7 @@ export function MachineDetailPage() {
       {entries?.length === 0 && <div className="empty-state">No one's in line. Be the first to join!</div>}
       {entries?.map((entry) => {
         const isMe = entry.users.some((u) => u.id === user?.id);
-        const canRequestJoin = !myEntry && !isMe && entry.users.length === 1;
+        const canRequestJoin = !myEntry && !isMe && entry.users.length < (machine?.max_group_size ?? 2);
         return (
           <QueueEntryRow
             key={entry.id}
@@ -255,9 +255,12 @@ function RightNow({ stats, myEntry }: { stats: MachineStats; myEntry: QueueEntry
       <div className="stat">
         <div className="stat-label">Right now</div>
         <div className={`stat-value ${stats.in_use ? "" : "status-free"}`}>{stats.in_use ? "In use" : "Free"}</div>
-        {stats.people_on_camera !== null && (
+        {stats.camera_people != null && stats.camera_unknown_count != null && (
           <div className="stat-note">
-            Camera: {stats.people_on_camera === 1 ? "1 person" : `${stats.people_on_camera} people`}
+            {formatCameraPeople(
+              stats.camera_people.map((p) => p.display_name),
+              stats.camera_unknown_count
+            )}
           </div>
         )}
       </div>
@@ -270,7 +273,9 @@ function RightNow({ stats, myEntry }: { stats: MachineStats; myEntry: QueueEntry
         <div className="stat-label">{waitLabel}</div>
         <div className="stat-value">{waitValue}</div>
         <div className="stat-note">
-          {formatWaitRange(stats.turn_seconds)} per turn; partners share a turn
+          {formatWaitRange(stats.turn_seconds)}
+          {stats.extra_seconds_per_partner != null &&
+            ` per turn, +${Math.round(stats.extra_seconds_per_partner / 60)} min per person working in`}
         </div>
       </div>
     </div>

@@ -74,6 +74,6 @@ Frontend env vars (`frontend/.env`, see `.env.example`): `VITE_API_BASE_URL`, `V
 ## Known simplifications
 
 - One live queue entry per user system-wide (can't be queued on two machines at once).
-- Partner "request to join" is only possible while the target entry is `waiting` (not mid-turn), and pairs are capped at 2 people.
-- If one partner in a pair leaves mid-turn, the whole pair's turn ends (no mid-turn splitting).
+- Partner "request to join" groups are capped at `max_group_size` (default 4, see `backend/app/config.py`'s `default_max_group_size`); only the entry's original owner approves each request, even once others have joined.
+- If any one partner in a group leaves mid-turn, the group's turn only ends once *everyone* in it is gone (no mid-turn splitting of the group itself).
 - Single backend process assumed for the background scheduler (no distributed locking — not needed at this scale).

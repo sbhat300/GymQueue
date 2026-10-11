@@ -34,10 +34,17 @@ def _fresh_heartbeat(machine_id: str) -> tuple[set[str], int, dict[str, dict]] |
     return seen[1], seen[2], seen[3]
 
 
+def camera_snapshot(machine_id: str) -> tuple[list[str], int] | None:
+    """(GymQueue user ids recognized on camera right now, count of unrecognized faces);
+    None if there's no live camera for this machine."""
+    hb = _fresh_heartbeat(machine_id)
+    return None if hb is None else (list(hb[0]), hb[1])
+
+
 def people_on_camera(machine_id: str) -> int | None:
     """How many people a machine's camera sees right now (busy times); None if no live camera."""
-    hb = _fresh_heartbeat(machine_id)
-    return None if hb is None else len(hb[0]) + hb[1]
+    snap = camera_snapshot(machine_id)
+    return None if snap is None else len(snap[0]) + snap[1]
 
 
 def any_member_present(machine_id: str, user_ids: list) -> bool:

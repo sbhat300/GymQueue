@@ -1,3 +1,4 @@
+from app.config import settings
 from tests.conftest import signup
 
 
@@ -57,20 +58,48 @@ async def test_can_request_and_join_an_active_entry(client, machine):
     assert {u["display_name"] for u in entries[0]["users"]} == {"Alice", "Bob"}
 
 
-async def test_cannot_request_join_on_already_paired_entry(client, machine):
+async def test_more_than_two_people_can_work_in_together(client, machine):
+    """Groups aren't capped at a pair - up to settings.default_max_group_size (4) can share a turn."""
+    alice = await signup(client, "alice", "Alice")
+    bob = await signup(client, "bob", "Bob")
+    carol = await signup(client, "carol", "Carol")
+    dave = await signup(client, "dave", "Dave")
+    mid = machine["machine_id"]
+
+    res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
+    entry_id = res.json()["id"]
+
+    for partner in (bob, carol, dave):
+        res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=partner["headers"])
+        assert res.status_code == 200, res.text
+        request_id = res.json()["id"]
+        res = await client.post(f"/join-requests/{request_id}/accept", headers=alice["headers"])
+        assert res.status_code == 200, res.text
+
+    res = await client.get(f"/machines/{mid}/queue", headers=alice["headers"])
+    [entry] = res.json()
+    assert {u["display_name"] for u in entry["users"]} == {"Alice", "Bob", "Carol", "Dave"}
+
+
+async def test_cannot_request_join_once_group_hits_max_size(client, machine):
     alice = await signup(client, "alice", "Alice")
     bob = await signup(client, "bob", "Bob")
     carol = await signup(client, "carol", "Carol")
     mid = machine["machine_id"]
 
-    res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
-    entry_id = res.json()["id"]
-    res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=bob["headers"])
-    request_id = res.json()["id"]
-    await client.post(f"/join-requests/{request_id}/accept", headers=alice["headers"])
+    original = settings.default_max_group_size
+    settings.default_max_group_size = 2
+    try:
+        res = await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
+        entry_id = res.json()["id"]
+        res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=bob["headers"])
+        request_id = res.json()["id"]
+        await client.post(f"/join-requests/{request_id}/accept", headers=alice["headers"])
 
-    res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=carol["headers"])
-    assert res.status_code == 409
+        res = await client.post(f"/machines/{mid}/queue/{entry_id}/join-requests", headers=carol["headers"])
+        assert res.status_code == 409
+    finally:
+        settings.default_max_group_size = original
 
 
 async def test_reject_join_request(client, machine):
