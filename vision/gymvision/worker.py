@@ -218,7 +218,9 @@ class MachineWorker:
 
     def status(self) -> dict:
         hb = self.heartbeat(time.time())
+        active = getattr(self.source, "active", None)  # which connection a fallback camera is on
         out = {"machine_id": self.machine_id, "name": self.cam.name, "source": self.cam.source,
+               "active_source": active.spec if active is not None else self.source.spec,
                "camera_online": hb["camera_online"], "camera_error": self.source.last_error,
                "fps": hb["fps"], "users": hb["users"]}
         if self.sets is not None:
