@@ -16,12 +16,17 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include "esp_camera.h"
+#include "esp_wifi.h"
 #include "esp_http_server.h"
 #include "img_converters.h"
 #include "jpeg_frame.h"
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 #include "secrets.h"
+
+#ifndef SERIAL_BAUD
+#define SERIAL_BAUD 921600            // serial monitor must use this speed too
+#endif
 
 #ifndef CAMERA_NAME
 #define CAMERA_NAME "bench1"
@@ -102,6 +107,7 @@ static httpd_handle_t streamServer = NULL;
 static bool flashOn = false;
 static uint32_t framesServed = 0;
 static unsigned long wifiLostAt = 0;
+static bool wifiWasUp = false;
 
 // ------------------------------------------------------------------ camera
 static bool initCamera() {
@@ -308,18 +314,76 @@ static void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
   Serial.printf("\nWi-Fi disconnected, reason %u %s\n", r, hint);
 }
 
-static void scanForNetwork() {
+// Networks to try, in order of preference (secrets.h: WIFI_SSID, optional _2 and _3).
+struct WifiNetwork {
+  const char *ssid;
+  const char *password;
+};
+static const WifiNetwork NETWORKS[] = {
+  {WIFI_SSID, WIFI_PASSWORD},
+#ifdef WIFI_SSID_2
+  {WIFI_SSID_2, WIFI_PASSWORD_2},
+#endif
+#ifdef WIFI_SSID_3
+  {WIFI_SSID_3, WIFI_PASSWORD_3},
+#endif
+};
+static const int NETWORK_COUNT = sizeof(NETWORKS) / sizeof(NETWORKS[0]);
+
+// Scan once and pick the first configured network that's in range (falls back to the first).
+static int pickNetwork() {
   int n = WiFi.scanNetworks();
-  for (int i = 0; i < n; i++) {
-    if (WiFi.SSID(i) == WIFI_SSID) {
-      Serial.printf("Found network: channel %d, signal %d dBm, security %s\n", WiFi.channel(i), WiFi.RSSI(i),
-                    authName(WiFi.encryptionType(i)));
-      WiFi.scanDelete();
-      return;
+  int chosen = -1;
+  for (int k = 0; k < NETWORK_COUNT; k++) {
+    bool seen = false;
+    for (int i = 0; i < n; i++) {
+      if (WiFi.SSID(i) == NETWORKS[k].ssid) {
+        Serial.printf("Network %d found: channel %d, signal %d dBm, security %s\n", k + 1, WiFi.channel(i),
+                      WiFi.RSSI(i), authName(WiFi.encryptionType(i)));
+        seen = true;
+        break;
+      }
     }
+    if (!seen) Serial.printf("Network %d not visible on 2.4 GHz\n", k + 1);
+    if (seen && chosen < 0) chosen = k;
   }
-  Serial.printf("Network NOT visible on 2.4 GHz (%d networks seen) - name typo, 5 GHz only, or too far\n", n);
   WiFi.scanDelete();
+  if (chosen >= 0) return chosen;
+  // None showed up in the scan (an iPhone hides its hotspot unless its settings screen is open):
+  // take turns trying each one directly.
+  static int nextBlind = 0;
+  chosen = nextBlind++ % NETWORK_COUNT;
+  Serial.printf("None of the %d network(s) seen in the scan (%d networks around) - trying network %d anyway\n",
+                NETWORK_COUNT, n, chosen + 1);
+  return chosen;
+}
+
+// Runs once each time Wi-Fi comes up.
+static void onWifiConnected() {
+  statusLed(true);                    // solid on = connected
+  // Power saving can come back on after connecting; it adds hundreds of ms of delay on some
+  // access points (phone hotspots especially). Force it off and say what it is.
+  esp_wifi_set_ps(WIFI_PS_NONE);
+  wifi_ps_type_t ps;
+  esp_wifi_get_ps(&ps);
+  Serial.printf("Wi-Fi power saving: %s\n", ps == WIFI_PS_NONE ? "off" : "ON");
+  Serial.printf("\nConnected to %s. Camera URL: http://%s/capture\n", WiFi.SSID().c_str(),
+                WiFi.localIP().toString().c_str());
+  Serial.printf("cameras.json source:   esp32:http://%s\n", WiFi.localIP().toString().c_str());
+  static bool mdnsStarted = false;
+  if (!mdnsStarted && MDNS.begin("gymcam-" CAMERA_NAME)) {
+    mdnsStarted = true;
+    MDNS.addService("http", "tcp", 80);
+    Serial.println("mDNS: http://gymcam-" CAMERA_NAME ".local");
+  }
+}
+
+// Try the best network in range. Doesn't block for long and never reboots, so the USB
+// cable keeps working when there's no Wi-Fi at all.
+static void startWifi() {
+  const WifiNetwork &net = NETWORKS[pickNetwork()];
+  WiFi.begin(net.ssid, net.password);
+  Serial.printf("Connecting to %s\n", net.ssid);
 }
 
 static void connectWifi() {
@@ -327,25 +391,41 @@ static void connectWifi() {
   WiFi.setSleep(false);               // power save adds big latency to every request
   WiFi.setHostname("gymcam-" CAMERA_NAME);
   WiFi.onEvent(onWifiEvent);
-  scanForNetwork();
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.printf("Connecting to %s", WIFI_SSID);
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    statusLed((millis() / 250) % 2);
-    delay(250);
-    Serial.print(".");
-    if (millis() - start > 30000) {
-      Serial.println("\nWi-Fi timeout, rebooting");
-      ESP.restart();
+  startWifi();
+  // Don't wait here: loop() finishes connecting, so the USB cable works from the start.
+  statusLed(false);
+  Serial.println("Connecting to Wi-Fi in the background (the USB cable works meanwhile)");
+}
+
+// ------------------------------------------------------------------ USB cable
+// The vision service can read frames over the USB cable instead of Wi-Fi (source "serial:").
+// It sends "SNAP\n"; we reply "FRAME <length>\n" followed by that many JPEG bytes.
+// Log lines may appear in between; the reader skips anything until "FRAME ".
+static void handleSerial() {
+  static char line[16];
+  static size_t len = 0;
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c != '\n' && len < sizeof(line) - 1) {
+      if (c != '\r') line[len++] = c;
+      continue;
     }
-  }
-  statusLed(true);                    // solid on = connected
-  Serial.printf("\nConnected. Camera URL: http://%s/capture\n", WiFi.localIP().toString().c_str());
-  Serial.printf("cameras.json source:   esp32:http://%s\n", WiFi.localIP().toString().c_str());
-  if (MDNS.begin("gymcam-" CAMERA_NAME)) {
-    MDNS.addService("http", "tcp", 80);
-    Serial.println("mDNS: http://gymcam-" CAMERA_NAME ".local");
+    line[len] = 0;
+    len = 0;
+    if (strcmp(line, "SNAP") == 0) {
+      JpegFrame f;
+      if (!grabJpeg(f)) {
+        Serial.print("FRAME 0\n");
+        continue;
+      }
+      Serial.printf("FRAME %u\n", (unsigned)f.len);
+      Serial.write(f.buf, f.len);
+      Serial.flush();
+      releaseJpeg(f);
+      framesServed++;
+    } else if (strcmp(line, "PING") == 0) {
+      Serial.print("PONG\n");
+    }
   }
 }
 
@@ -353,7 +433,8 @@ void setup() {
 #if defined(BOARD_AI_THINKER)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);  // AI-Thinker browns out on weak USB power at Wi-Fi start
 #endif
-  Serial.begin(115200);
+  Serial.setRxBufferSize(256);
+  Serial.begin(SERIAL_BAUD);          // also the speed of the USB frame link
   Serial.println("\nGym queue camera booting");
   if (FLASH_LED_PIN >= 0) {
     pinMode(FLASH_LED_PIN, OUTPUT);
@@ -371,20 +452,31 @@ void setup() {
 }
 
 void loop() {
-  // hotspots drop clients; reconnect, and reboot if it stays down
-  if (WiFi.status() != WL_CONNECTED) {
-    if (wifiLostAt == 0) {
-      wifiLostAt = millis();
-      statusLed(false);
-      Serial.println("Wi-Fi lost, reconnecting");
-      WiFi.reconnect();
-    } else if (millis() - wifiLostAt > 30000) {
-      ESP.restart();
-    }
-  } else if (wifiLostAt != 0) {
-    wifiLostAt = 0;
-    statusLed(true);
-    Serial.printf("Wi-Fi back: http://%s/capture\n", WiFi.localIP().toString().c_str());
+  handleSerial();
+
+  // Wi-Fi: reconnect when dropped; after 30 s without it, try the next network in range.
+  static unsigned long lastCheck = 0;
+  if (millis() - lastCheck < 1000) {
+    delay(2);
+    return;
   }
-  delay(1000);
+  lastCheck = millis();
+  bool up = WiFi.status() == WL_CONNECTED;
+  if (up) {
+    if (!wifiWasUp) onWifiConnected();
+    wifiWasUp = true;
+    wifiLostAt = 0;
+    return;
+  }
+  if (wifiWasUp || wifiLostAt == 0) {
+    wifiWasUp = false;
+    wifiLostAt = millis();
+    statusLed(false);
+    Serial.println("Wi-Fi not connected, retrying");
+    WiFi.reconnect();
+  } else if (millis() - wifiLostAt > 30000) {
+    wifiLostAt = millis();
+    WiFi.disconnect();
+    startWifi();
+  }
 }

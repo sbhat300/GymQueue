@@ -4,6 +4,12 @@
 #pragma once
 #define WIFI_SSID     "YourHotspotName"
 #define WIFI_PASSWORD "hotspot-password"
+// Optional backups, tried in order when the first isn't in range (e.g. home Wi-Fi, a phone hotspot):
+// #define WIFI_SSID_2     "second network name"
+// #define WIFI_PASSWORD_2 "second network password"
+// #define WIFI_SSID_3     "third network name"
+// #define WIFI_PASSWORD_3 "third network password"
+
 #define CAMERA_NAME   "bench1"   // unique per camera; becomes http://gymcam-bench1.local
 
 // Board: Freenove ESP32-S3 WROOM CAM is the default. For an AI-Thinker ESP32-CAM uncomment:

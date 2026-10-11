@@ -23,7 +23,7 @@ def _i(name: str, default: int) -> int:
 @dataclass
 class CameraConfig:
     machine_id: str
-    source: str
+    source: str | list[str]   # one source, or several to fall back between (camera.py)
     name: str = ""
     # Optional machine area [x1, y1, x2, y2] as fractions of the frame, e.g. [0.25, 0.1, 0.75, 0.8].
     # Only this region is searched: faces there are effectively zoomed in (recognised from further

@@ -4,6 +4,7 @@ onnxruntime==1.31.0
 insightface==2.1
 scikit-image>=0.26,<2.2   # insightface uses SimilarityTransform.estimate, removed in 2.2
 mediapipe==1.1.0          # body pose for rep counting (model downloads to data/models on first use)
+pyserial==3.5             # ESP32 frames over the USB cable (serial: source)
 fastapi==0.143.0
 uvicorn[standard]==0.54.0
 httpx==0.28.1
