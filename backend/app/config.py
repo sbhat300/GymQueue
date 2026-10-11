@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     vision_api_key: str = ""              # sent to vision's command API (== vision's own VISION_API_KEY)
     vision_events_api_key: str = ""       # expected on inbound events from vision (== vision's BACKEND_API_KEY)
 
+    # ---- voice announcements (ElevenLabs) ----
+    elevenlabs_api_key: str = ""          # blank = voice announcements disabled
+    elevenlabs_voice_id: str = ""         # blank = auto-pick the first voice on the account
+
     # ---- busy times / estimated wait ----
     gym_timezone: str = "America/New_York"
     stats_sample_interval_seconds: float = 60.0

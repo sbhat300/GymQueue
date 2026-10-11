@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.common import EventType, oid
+from app.notifications import voice
 from app.ws.manager import ConnectionManager
 
 
@@ -20,6 +21,9 @@ async def notify_users(
     if not user_ids:
         return
     now = datetime.now(timezone.utc)
+    audio_id = await voice.synthesize_for_event(event_type, payload)
+    if audio_id:
+        payload = {**payload, "audio_id": audio_id}
     docs = [
         {
             "user_id": oid(uid, "user_id"),

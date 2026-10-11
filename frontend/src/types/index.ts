@@ -115,7 +115,5 @@ export interface WorkoutEntry {
   weight_lbs: number | null;
   source: "manual" | "camera";
   machine_name: string | null;
-  avg_hr: number | null; // heart rate during the set (bpm), from the machine camera - wellness estimate, not medical
-  peak_hr: number | null;
   created_at: string;
 }

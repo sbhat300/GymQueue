@@ -46,8 +46,6 @@ def entry_to_public(doc: dict) -> dict:
         "weight_lbs": doc.get("weight_lbs"),
         "source": doc["source"],  # "manual" | "camera"
         "machine_name": doc.get("machine_name"),
-        "avg_hr": doc.get("avg_hr"),
-        "peak_hr": doc.get("peak_hr"),
         "created_at": doc["created_at"].isoformat(),
     }
 
@@ -74,7 +72,7 @@ async def add_manual(db, user_id: ObjectId, exercise: str, reps: int, weight_lbs
 
 
 async def add_camera_set(db, user_id: ObjectId, machine_id: ObjectId, exercise: str, reps: int,
-                         event_id: str, avg_hr: float | None = None, peak_hr: float | None = None) -> dict | None:
+                         event_id: str) -> dict | None:
     """A set counted by a machine camera. Returns None if this event was already logged."""
     if exercise not in EXERCISES or reps < 1:
         return None
@@ -82,7 +80,6 @@ async def add_camera_set(db, user_id: ObjectId, machine_id: ObjectId, exercise: 
     now = datetime.now(timezone.utc)
     doc = {"user_id": user_id, "day": today(now), "exercise": exercise, "reps": int(reps), "weight_lbs": None,
            "source": "camera", "machine_id": machine_id, "machine_name": machine["name"] if machine else None,
-           "avg_hr": avg_hr, "peak_hr": peak_hr,
            "vision_event_id": event_id, "created_at": now}
     try:
         doc["_id"] = (await db.workout_entries.insert_one(doc)).inserted_id

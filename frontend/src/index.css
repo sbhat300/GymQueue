@@ -1177,23 +1177,6 @@ h3 {
   font-weight: 600;
 }
 
-.live-reps-hr {
-  margin-left: auto;
-  text-align: right;
-  opacity: 0.95;
-}
-
-.live-reps-hr-value {
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.1;
-}
-
-.live-reps-hr-label {
-  font-size: 11px;
-  opacity: 0.85;
-}
-
 .workout-form-row {
   display: flex;
   flex-wrap: wrap;

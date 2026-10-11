@@ -1,13 +1,27 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.db import get_db
 from app.deps import get_current_user
 from app.models.common import oid
+from app.notifications import voice
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+
+
+@router.get("/audio/{audio_id}")
+async def get_audio(audio_id: str):
+    """Serves synthesized voice clips by their opaque id - unauthenticated so a plain
+    <audio src> works, same tradeoff as the vision service's machine snapshot images.
+    The id is an unguessable hash and the spoken text (e.g. a display name in a join
+    request) is already visible to the recipient in-app, so this adds no new exposure."""
+    data = voice.get_cached(audio_id)
+    if data is None:
+        raise HTTPException(404, "Audio not found or expired")
+    return Response(data, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 def _notification_to_public(doc: dict) -> dict:

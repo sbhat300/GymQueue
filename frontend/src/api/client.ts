@@ -46,3 +46,7 @@ export async function apiRequest<T>(
 export function wsBaseUrl(): string {
   return import.meta.env.VITE_WS_BASE_URL as string;
 }
+
+export function apiBaseUrl(): string {
+  return API_BASE_URL;
+}

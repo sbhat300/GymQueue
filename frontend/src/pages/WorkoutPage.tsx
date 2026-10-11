@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { addSet, deleteSet, editSet, getTodayWorkout, listExercises } from "../api/workouts";
 import { ApiError } from "../api/client";
 import { useLiveRepCount } from "../hooks/useLiveRepCount";
-import { useLiveVitals } from "../hooks/useLiveVitals";
 import type { Exercise, WorkoutEntry } from "../types";
 
 function exerciseLabel(exercises: Exercise[], key: string): string {
@@ -51,7 +50,6 @@ export function WorkoutPage() {
   }, [refresh]);
 
   const live = useLiveRepCount(refresh);
-  const vitals = useLiveVitals();
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
@@ -138,12 +136,6 @@ export function WorkoutPage() {
               {live.reps} <span>{live.reps === 1 ? "rep" : "reps"}</span>
             </div>
           </div>
-          {vitals && vitals.machineId === live.machineId && (
-            <div className="live-reps-hr" title="Wellness estimate from the camera, not a medical reading">
-              <div className="live-reps-hr-value">{Math.round(vitals.hr)}</div>
-              <div className="live-reps-hr-label">bpm</div>
-            </div>
-          )}
         </div>
       )}
 
@@ -271,7 +263,6 @@ export function WorkoutPage() {
                 <span className="workout-set-num">Set {i + 1}</span>
                 <span className="workout-set-reps">
                   {set.reps} reps{set.weight_lbs != null ? ` · ${set.weight_lbs} lb` : ""}
-                  {set.avg_hr != null ? ` · avg ${Math.round(set.avg_hr)} bpm` : ""}
                 </span>
                 <span className={`workout-source is-${set.source}`} title={set.machine_name ?? undefined}>
                   {set.source === "camera" ? "Camera" : "Manual"}

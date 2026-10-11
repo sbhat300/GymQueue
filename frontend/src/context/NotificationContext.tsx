@@ -1,8 +1,17 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { acceptJoinRequest, listIncomingJoinRequests, rejectJoinRequest } from "../api/joinRequests";
+import { apiBaseUrl } from "../api/client";
 import { GymSocket } from "../ws/socket";
 import type { WsEvent } from "../types";
 import { useAuth } from "./AuthContext";
+
+// Browsers block audio.play() until the page has had a user gesture; by the time a
+// "your turn" notification can fire, the user has already logged in and clicked
+// around, so this basically always succeeds. Swallow the rare rejection either way -
+// losing the voice line isn't worth surfacing an error for.
+function playAnnouncement(audioId: string) {
+  new Audio(`${apiBaseUrl()}/notifications/audio/${audioId}`).play().catch(() => {});
+}
 
 export interface Toast {
   id: string;
@@ -110,12 +119,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   function handleEvent(event: WsEvent) {
     switch (event.type) {
       case "your_turn": {
-        const data = event.data as { machine_name?: string };
+        const data = event.data as { machine_name?: string; audio_id?: string };
         pushToast({
           title: "It's your turn!",
           body: `${data.machine_name ?? "A machine"} is ready for you. Head over - the camera checks you in automatically.`,
           variant: "success",
         });
+        if (data.audio_id) playAnnouncement(data.audio_id);
         break;
       }
       case "checked_in": {
@@ -132,11 +142,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         break;
       }
       case "session_ended": {
+        const data = event.data as { audio_id?: string };
         pushToast({ title: "Session ended", body: "Your turn on the machine has ended.", variant: "info" });
+        if (data.audio_id) playAnnouncement(data.audio_id);
         break;
       }
       case "rest_expired": {
+        const data = event.data as { audio_id?: string };
         pushToast({ title: "Rest period expired", body: "You didn't return in time — the machine is wrapping up your turn.", variant: "warning" });
+        if (data.audio_id) playAnnouncement(data.audio_id);
         break;
       }
       case "workout_logged": {
@@ -149,8 +163,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         break;
       }
       case "join_request_received": {
-        const data = event.data as { request_id: string; requester_display_name?: string };
+        const data = event.data as { request_id: string; requester_display_name?: string; audio_id?: string };
         pushJoinRequestToast(data.request_id, data.requester_display_name ?? "Someone");
+        // Only the live WS event speaks - the backlog replay on page load (pushJoinRequestToast
+        // called directly, below) must stay silent or every pending request would blare at once.
+        if (data.audio_id) playAnnouncement(data.audio_id);
         break;
       }
       case "join_request_accepted": {
