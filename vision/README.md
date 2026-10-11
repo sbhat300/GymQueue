@@ -117,12 +117,6 @@ Per machine, every processed frame:
   until the rest ends; then the normal grace period applies. Coming back early sends
   `rest_ended: returned`. Max `MAX_RESTS` (6) per session. Tapping "rest" while still in front
   of the camera does not cancel it.
-- **liveness (anti-spoofing)**: a recognised face only counts as *arriving* once it has turned
-  side to side (~20°, the same move as the face scan). A photo or phone screen is flat: moving,
-  zooming, rotating or tilting it barely changes the face's yaw ratio (worst measured: 0.18 for a
-  picture tilted ~50°, vs 0.2+ for a real turn). Once someone is checked in they aren't re-tested.
-  The live view shows an orange box until a face passes. Not proof against a *video* of the person
-  played on a phone. `LIVENESS=false` turns it off.
 - **unknown face** persistently at the machine → `unknown_face` (rate-limited).
 - **camera offline** → `camera_offline`; that time is *not* counted as the user being away.
 

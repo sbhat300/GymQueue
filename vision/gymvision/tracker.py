@@ -48,41 +48,6 @@ class Track:
     last_score: float = 0.0
     emb_sum: np.ndarray | None = None   # quality-weighted running sum of this face's embeddings
     frames: int = 0
-    poses: deque = field(default_factory=lambda: deque(maxlen=120))  # (t, yaw, pitch, roll)
-    live: bool = False                  # seen behaving like a real 3D head (latched)
-
-    ROLL_BIN_DEG = 8.0
-
-    def update_liveness(self, now: float, yaw: float, pitch: float, roll: float,
-                        window_s: float = settings.liveness_window_s,
-                        min_turn: float = settings.liveness_min_turn) -> bool:
-        """Live = the person turned their head side to side (~20 degrees), like in the face scan.
-
-        A photo or phone screen is flat, so moving, zooming, rotating or tilting it barely
-        changes the face's yaw ratio (measured worst case ~0.18 for a picture tilted ~50
-        degrees; a real 20 degree head turn gives 0.2+). Poses are only compared between
-        frames with the same in-plane rotation (8 degree bins), since rotating a picture
-        nudges the landmark model, and smoothed over 3 frames to ignore landmark jitter.
-        Not proof against a video of the person played on a phone.
-        """
-        self.poses.append((now, yaw, pitch, roll))
-        while self.poses and now - self.poses[0][0] > window_s:
-            self.poses.popleft()
-        if self.live or len(self.poses) < 5:
-            return self.live
-        bins: dict[int, list] = {}
-        for p in self.poses:
-            bins.setdefault(round(p[3] / self.ROLL_BIN_DEG), []).append(p)
-        for pts in bins.values():
-            if len(pts) < 5:
-                continue
-            smooth = [(sum(p[1] for p in pts[i:i + 3]) / 3, sum(p[2] for p in pts[i:i + 3]) / 3)
-                      for i in range(len(pts) - 2)]
-            yaws = [s[0] for s in smooth]
-            if max(yaws) - min(yaws) >= min_turn:
-                self.live = True
-                break
-        return self.live
 
     @property
     def identity(self) -> str:
@@ -135,9 +100,7 @@ class FaceTracker:
         for fi, f in enumerate(faces):
             t = assigned[fi]
             if t.emb_sum is not None and t.frames >= 3 and float(f.embedding @ t.embedding) < self.SWAP_SIM:
-                t.emb_sum, t.votes, t.frames, t.live = None, {}, 0, False
-                t.poses.clear()
-            t.update_liveness(now, *f.head_pose(), f.roll())
+                t.emb_sum, t.votes, t.frames = None, {}, 0
             weight = f.det_score * min(1.0, f.width / self.FULL_QUALITY_PX)
             t.emb_sum = weight * f.embedding if t.emb_sum is None else self.EMB_DECAY * t.emb_sum + weight * f.embedding
             t.frames += 1

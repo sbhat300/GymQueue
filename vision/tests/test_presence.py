@@ -173,19 +173,15 @@ FACE_B = _rng.normal(size=512); FACE_B /= np.linalg.norm(FACE_B)
 
 
 class F:
-    def __init__(self, x, emb=FACE_A, width=100, yaw=0.0, pitch=0.6, roll=0.0):
+    def __init__(self, x, emb=FACE_A, width=100, yaw=0.0, pitch=0.6):
         self.bbox = np.array([x, 100, x + width, 100 + width], float)
         self.width, self.det_score = float(width), 0.9
         noisy = emb + _rng.normal(scale=0.03, size=512)
         self.embedding = noisy / np.linalg.norm(noisy)
         self.pose = (yaw, pitch)
-        self.roll_deg = roll
 
     def head_pose(self):
         return self.pose
-
-    def roll(self):
-        return self.roll_deg
 
 
 def matcher(results):
@@ -228,57 +224,3 @@ def test_person_swap_resets_track():
     seen = tr.update([F(100, FACE_B)], 1.2, lambda e: Match("u2", 0.7))
     assert seen[0].identity == "u2"
     assert float(seen[0].embedding @ FACE_A) < 0.15   # nothing of the previous person left
-
-
-# ------------------------------------------------------------------ liveness
-def test_still_picture_is_not_live():
-    """A photo held up: landmarks jitter a little, but the face's proportions never change."""
-    tr = FaceTracker()
-    for i in range(40):
-        jitter = _rng.normal(scale=0.012, size=2)
-        seen = tr.update([F(100 + i % 3, yaw=0.02 + jitter[0], pitch=0.6 + jitter[1])], i * 0.2,
-                         lambda e: Match("u1", 0.7))
-    assert seen[0].identity == "u1" and not seen[0].live
-
-
-def test_small_fidgeting_is_not_enough():
-    """Only a deliberate turn counts - small movements look like a tilted photo."""
-    tr = FaceTracker()
-    for i in range(30):
-        seen = tr.update([F(100, yaw=0.05 * np.sin(i / 2))], i * 0.2, lambda e: Match("u1", 0.7))
-    assert not seen[0].live
-
-
-def test_real_head_moving_is_live():
-    tr = FaceTracker()
-    for i in range(12):
-        seen = tr.update([F(100, yaw=0.18 * np.sin(i / 2))], i * 0.2, lambda e: Match("u1", 0.7))
-    assert seen[0].live
-
-
-def test_liveness_survives_holding_still_afterwards():
-    tr = FaceTracker()
-    for i in range(12):
-        tr.update([F(100, yaw=0.18 * np.sin(i / 2))], i * 0.2, lambda e: Match("u1", 0.7))
-    for i in range(12, 60):
-        seen = tr.update([F(100)], i * 0.2, lambda e: Match("u1", 0.7))
-    assert seen[0].live
-
-
-def test_person_swap_resets_liveness():
-    tr = FaceTracker()
-    for i in range(12):
-        tr.update([F(100, yaw=0.18 * np.sin(i / 2))], i * 0.2, lambda e: Match("u1", 0.7))
-    seen = tr.update([F(100, FACE_B)], 3.0, lambda e: Match("u2", 0.7))
-    assert not seen[0].live
-
-
-def test_rotated_photo_pose_shift_is_ignored():
-    """Rotating a photo shifts the landmark model's yaw/pitch slightly - but always together
-    with a change in roll, so it must not count as head movement."""
-    tr = FaceTracker()
-    for i in range(40):
-        angle = 30 * np.sin(i / 3)
-        seen = tr.update([F(100, yaw=0.13 + 0.002 * angle, pitch=0.7 + 0.003 * abs(angle), roll=angle)],
-                         i * 0.2, lambda e: Match("u1", 0.7))
-    assert not seen[0].live

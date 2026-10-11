@@ -40,9 +40,8 @@ class Face:
         These are compared against the person's own neutral pose during enrollment,
         so the absolute values do not have to be calibrated.
 
-        Measured along the face's own eye axis, so tilting the head (or a photo) sideways
-        doesn't register as a turn. Both ratios are unchanged by moving, zooming, rotating or
-        tilting a flat picture of a face - only a real 3D head changes them (see liveness).
+        Measured along the face's own eye axis, so tilting the head sideways doesn't register
+        as a turn.
         """
         le, re, nose, lm, rm = self.kps
         eye_mid = (le + re) / 2
@@ -56,14 +55,6 @@ class Face:
         pitch = float(v @ uy) / max(float((mouth_mid - eye_mid) @ uy), 1e-3)
         return yaw, pitch
 
-    def roll(self) -> float:
-        return roll_degrees(self)
-
-
-def roll_degrees(face: Face) -> float:
-    """In-plane rotation of the face (eye line vs horizontal)."""
-    le, re = face.kps[0], face.kps[1]
-    return float(np.degrees(np.arctan2(re[1] - le[1], re[0] - le[0])))
 
 
 def sharpness(img: np.ndarray, face: Face) -> float:
