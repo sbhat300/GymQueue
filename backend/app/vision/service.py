@@ -11,7 +11,7 @@ from bson.errors import InvalidId
 from fastapi import HTTPException
 
 from app.models.common import EventType, QueueState
-from app.notifications.service import notify_users, send_live
+from app.notifications.service import send_live
 from app.workouts import service as workouts
 from app.queue import service as queue_service
 from app.queue.service import LIVE_STATE_VALUES
@@ -90,29 +90,10 @@ async def _find_live_entry(db, user_id: ObjectId, machine_id: ObjectId) -> dict 
     return entry
 
 
-async def _notify_wrong_machine(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, reason: str) -> None:
-    machine = await db.machines.find_one({"_id": machine_id})
-    await notify_users(
-        db,
-        manager,
-        [str(user_id)],
-        EventType.NOT_YOUR_MACHINE,
-        {"machine_id": str(machine_id), "machine_name": machine["name"] if machine else None, "reason": reason},
-    )
-
-
 async def _on_user_arrived(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:
     entry = await _find_live_entry(db, user_id, machine_id)
     if entry is not None and entry["state"] == QueueState.GRACE.value:
         await queue_service.check_in(db, manager, entry["_id"], user_id)
-        return
-    if event.type != "user_arrived":
-        return  # heartbeat catch-up only checks people in - warning here would repeat every heartbeat
-    if entry is None:
-        await _notify_wrong_machine(db, manager, user_id, machine_id, "not_queued")
-    elif entry["state"] == QueueState.WAITING.value:
-        await _notify_wrong_machine(db, manager, user_id, machine_id, "not_your_turn")
-    # ACTIVE/RESTING here just means a re-recognition of the machine's current owner - fine
 
 
 async def _on_user_left(db, manager: ConnectionManager, user_id: ObjectId, machine_id: ObjectId, event: VisionEvent) -> None:

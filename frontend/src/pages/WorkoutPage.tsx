@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { addSet, deleteSet, getTodayWorkout, listExercises } from "../api/workouts";
+import { addSet, deleteSet, editSet, getTodayWorkout, listExercises } from "../api/workouts";
 import { ApiError } from "../api/client";
 import { useNotifications } from "../context/NotificationContext";
 import type { Exercise, WorkoutEntry, WsEvent } from "../types";
@@ -34,6 +34,11 @@ export function WorkoutPage() {
   const [reps, setReps] = useState("");
   const [weight, setWeight] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editReps, setEditReps] = useState("");
+  const [editWeight, setEditWeight] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   const refresh = useCallback(() => {
     getTodayWorkout()
@@ -96,6 +101,33 @@ export function WorkoutPage() {
       refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't delete that set");
+    }
+  }
+
+  function startEdit(set: WorkoutEntry) {
+    setError(null);
+    setEditingId(set.id);
+    setEditReps(String(set.reps));
+    setEditWeight(set.weight_lbs != null ? String(set.weight_lbs) : "");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function handleEditSave(e: FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setError(null);
+    setEditSaving(true);
+    try {
+      await editSet(editingId, Number(editReps), editWeight ? Number(editWeight) : null);
+      setEditingId(null);
+      refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't save that set");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -217,24 +249,71 @@ export function WorkoutPage() {
               {group.sets.reduce((s, e) => s + e.reps, 0)} reps
             </div>
           </div>
-          {group.sets.map((set, i) => (
-            <div key={set.id} className="workout-set">
-              <span className="workout-set-num">Set {i + 1}</span>
-              <span className="workout-set-reps">
-                {set.reps} reps{set.weight_lbs != null ? ` · ${set.weight_lbs} lb` : ""}
-              </span>
-              <span className={`workout-source is-${set.source}`} title={set.machine_name ?? undefined}>
-                {set.source === "camera" ? "Camera" : "Manual"}
-              </span>
-              <button
-                className="btn btn-sm btn-ghost workout-delete"
-                onClick={() => handleDelete(set.id)}
-                aria-label={`Delete set ${i + 1} of ${group.label}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
+          {group.sets.map((set, i) =>
+            editingId === set.id ? (
+              <form key={set.id} className="workout-set is-editing" onSubmit={handleEditSave}>
+                <span className="workout-set-num">Set {i + 1}</span>
+                <span className="workout-edit-fields">
+                  <input
+                    className="input workout-edit-num"
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={editReps}
+                    onChange={(e) => setEditReps(e.target.value)}
+                    aria-label={`Reps for set ${i + 1} of ${group.label}`}
+                    autoFocus
+                    required
+                  />
+                  <span className="muted">reps ·</span>
+                  <input
+                    className="input workout-edit-num"
+                    type="number"
+                    min={0}
+                    max={2000}
+                    step="any"
+                    placeholder="lb"
+                    value={editWeight}
+                    onChange={(e) => setEditWeight(e.target.value)}
+                    aria-label={`Weight for set ${i + 1} of ${group.label}`}
+                  />
+                  <span className="muted">lb</span>
+                </span>
+                <button className="btn btn-sm btn-primary" type="submit" disabled={editSaving}>
+                  {editSaving ? "Saving…" : "Save"}
+                </button>
+                <button className="btn btn-sm btn-ghost" type="button" onClick={cancelEdit} disabled={editSaving}>
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <div key={set.id} className="workout-set">
+                <span className="workout-set-num">Set {i + 1}</span>
+                <span className="workout-set-reps">
+                  {set.reps} reps{set.weight_lbs != null ? ` · ${set.weight_lbs} lb` : ""}
+                </span>
+                <span className={`workout-source is-${set.source}`} title={set.machine_name ?? undefined}>
+                  {set.source === "camera" ? "Camera" : "Manual"}
+                </span>
+                <span className="workout-set-actions">
+                  <button
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => startEdit(set)}
+                    aria-label={`Edit set ${i + 1} of ${group.label}`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="btn btn-sm btn-ghost workout-delete"
+                    onClick={() => handleDelete(set.id)}
+                    aria-label={`Delete set ${i + 1} of ${group.label}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            )
+          )}
         </div>
       ))}
     </div>

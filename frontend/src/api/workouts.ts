@@ -16,6 +16,13 @@ export function addSet(exercise: string, reps: number, weightLbs: number | null)
   });
 }
 
+export function editSet(entryId: string, reps: number, weightLbs: number | null) {
+  return apiRequest<WorkoutEntry>(`/workouts/entries/${entryId}`, {
+    method: "PATCH",
+    body: { reps, weight_lbs: weightLbs },
+  });
+}
+
 export function deleteSet(entryId: string) {
   return apiRequest<{ deleted: string }>(`/workouts/entries/${entryId}`, { method: "DELETE" });
 }

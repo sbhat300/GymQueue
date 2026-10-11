@@ -148,19 +148,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         });
         break;
       }
-      case "not_your_machine": {
-        const data = event.data as { machine_name?: string; reason?: string };
-        const name = data.machine_name ?? "This machine";
-        pushToast({
-          title: "Not your turn",
-          body:
-            data.reason === "not_your_turn"
-              ? `${name} isn't ready for you yet — someone else still has it.`
-              : `You're not currently queued for ${name}. Join the queue in the app to use it.`,
-          variant: "warning",
-        });
-        break;
-      }
       case "join_request_received": {
         const data = event.data as { request_id: string; requester_display_name?: string };
         pushJoinRequestToast(data.request_id, data.requester_display_name ?? "Someone");

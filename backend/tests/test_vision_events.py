@@ -248,58 +248,6 @@ async def test_start_rest_notifies_vision_for_every_partner(client, machine, mon
     assert set(notified) == {alice["user"]["id"], bob["user"]["id"]}
 
 
-async def test_user_arrived_with_no_queue_entry_notifies_not_queued(client, machine):
-    alice = await signup(client, "alice", "Alice")
-    mid = machine["machine_id"]
-
-    res = await client.post(
-        "/api/vision/events",
-        json={"events": [_event("user_arrived", mid, user_id=alice["user"]["id"], confidence=0.9)]},
-    )
-    assert res.status_code == 200
-
-    res = await client.get("/notifications", headers=alice["headers"])
-    notifs = res.json()
-    assert notifs[0]["type"] == "not_your_machine"
-    assert notifs[0]["payload"]["reason"] == "not_queued"
-
-
-async def test_user_arrived_while_still_waiting_notifies_not_your_turn(client, machine):
-    alice = await signup(client, "alice", "Alice")
-    bob = await signup(client, "bob", "Bob")
-    mid = machine["machine_id"]
-
-    await client.post(f"/machines/{mid}/queue/join", headers=alice["headers"])
-    await client.post(f"/machines/{mid}/queue/join", headers=bob["headers"])
-
-    res = await client.post(
-        "/api/vision/events",
-        json={"events": [_event("user_arrived", mid, user_id=bob["user"]["id"], confidence=0.9)]},
-    )
-    assert res.status_code == 200
-
-    res = await client.get("/notifications", headers=bob["headers"])
-    notifs = res.json()
-    assert notifs[0]["type"] == "not_your_machine"
-    assert notifs[0]["payload"]["reason"] == "not_your_turn"
-
-
-async def test_heartbeat_catchup_does_not_send_wrong_machine_notification(client, machine):
-    """The wrong-person warning must only come from a fresh user_arrived, never from the
-    heartbeat catch-up path - that one repeats every heartbeat and would spam the user."""
-    alice = await signup(client, "alice", "Alice")
-    mid = machine["machine_id"]
-
-    res = await client.post(
-        "/api/vision/events",
-        json={"events": [_heartbeat(mid, [alice["user"]["id"]])]},
-    )
-    assert res.status_code == 200
-
-    res = await client.get("/notifications", headers=alice["headers"])
-    assert res.json() == []
-
-
 async def test_unrecognised_user_id_is_ignored(client, machine):
     """An enrolled vision user_id that isn't a GymQueue ObjectId (e.g. test/CLI
     enrollments) must not 500 the whole batch."""

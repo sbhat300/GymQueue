@@ -1239,6 +1239,28 @@ h3 {
   padding: 2px 8px;
 }
 
+.workout-set-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.workout-set.is-editing {
+  align-items: center;
+}
+
+.workout-edit-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.workout-edit-num {
+  width: 72px;
+  padding: 4px 8px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .live-reps-dot {
     animation: none;

@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 from fastapi import HTTPException, status
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from app.config import settings
@@ -84,6 +85,18 @@ async def add_camera_set(db, user_id: ObjectId, machine_id: ObjectId, exercise: 
         doc["_id"] = (await db.workout_entries.insert_one(doc)).inserted_id
     except DuplicateKeyError:
         return None  # vision retried delivery
+    return entry_to_public(doc)
+
+
+async def update_entry(db, user_id: ObjectId, entry_id: ObjectId, reps: int, weight_lbs: float | None) -> dict:
+    """Correct the reps/weight of an existing entry (manual typo or a camera miscount)."""
+    doc = await db.workout_entries.find_one_and_update(
+        {"_id": entry_id, "user_id": user_id},
+        {"$set": {"reps": reps, "weight_lbs": weight_lbs}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if doc is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Workout entry not found")
     return entry_to_public(doc)
 
 

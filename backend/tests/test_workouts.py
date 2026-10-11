@@ -75,6 +75,43 @@ async def test_unrecognised_person_sets_are_ignored(client, machine):
     assert await _today(client, alice) == []
 
 
+async def test_edit_updates_reps_and_weight(client):
+    alice = await signup(client, "alice", "Alice")
+    entry = (await client.post("/workouts/today", json={"exercise": "squat", "reps": 5, "weight_lbs": 135},
+                               headers=alice["headers"])).json()
+    res = await client.patch(f"/workouts/entries/{entry['id']}", json={"reps": 8, "weight_lbs": 145},
+                             headers=alice["headers"])
+    assert res.status_code == 200
+    assert (res.json()["reps"], res.json()["weight_lbs"]) == (8, 145)
+    [updated] = await _today(client, alice)
+    assert (updated["reps"], updated["weight_lbs"]) == (8, 145)
+
+
+async def test_edit_can_correct_a_camera_set(client, machine):
+    alice = await signup(client, "alice", "Alice")
+    evt = _event("set_completed", machine["machine_id"], user_id=alice["user"]["id"], exercise="shoulder_press", reps=1)
+    await client.post("/api/vision/events", json={"events": [evt]})
+    [entry] = await _today(client, alice)
+    res = await client.patch(f"/workouts/entries/{entry['id']}", json={"reps": 9}, headers=alice["headers"])
+    assert res.status_code == 200
+    assert res.json()["reps"] == 9
+
+
+async def test_edit_only_your_own_sets(client):
+    alice = await signup(client, "alice", "Alice")
+    bob = await signup(client, "bob", "Bob")
+    entry = (await client.post("/workouts/today", json={"exercise": "squat", "reps": 5}, headers=alice["headers"])).json()
+    res = await client.patch(f"/workouts/entries/{entry['id']}", json={"reps": 9}, headers=bob["headers"])
+    assert res.status_code == 404
+
+
+async def test_edit_rejects_bad_input(client):
+    alice = await signup(client, "alice", "Alice")
+    entry = (await client.post("/workouts/today", json={"exercise": "squat", "reps": 5}, headers=alice["headers"])).json()
+    res = await client.patch(f"/workouts/entries/{entry['id']}", json={"reps": 0}, headers=alice["headers"])
+    assert res.status_code == 422
+
+
 async def test_delete_only_your_own_sets(client):
     alice = await signup(client, "alice", "Alice")
     bob = await signup(client, "bob", "Bob")
