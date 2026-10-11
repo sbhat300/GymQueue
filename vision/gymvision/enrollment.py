@@ -36,8 +36,9 @@ MIN_ENROLL_FACE_PX = 90
 MIN_DET_SCORE = 0.6
 MIN_SHARPNESS = 25.0
 CENTER_MAX_YAW = 0.20
-TURN_MIN_YAW = 0.20          # yaw ratio change vs. the user's own neutral pose (~20 degrees)
-TILT_MIN_PITCH = 0.10
+TURN_MIN_YAW = 0.12          # yaw ratio change vs. the user's own neutral pose (~12 degrees)
+TILT_MIN_PITCH = 0.07
+TILT_MAX_YAW = 0.20          # up/down steps: how much sideways turn is still tolerated
 SAME_PERSON_MIN_SIM = 0.35   # every sample must look like the center samples
 DUPLICATE_SIM = 0.55         # finishing is refused if the face already belongs to someone else
 
@@ -133,8 +134,8 @@ class EnrollmentSession:
             ok = {
                 "left": dy >= TURN_MIN_YAW,
                 "right": dy <= -TURN_MIN_YAW,
-                "up": dp <= -TILT_MIN_PITCH and abs(dy) < TURN_MIN_YAW,
-                "down": dp >= TILT_MIN_PITCH and abs(dy) < TURN_MIN_YAW,
+                "up": dp <= -TILT_MIN_PITCH and abs(dy) < TILT_MAX_YAW,
+                "down": dp >= TILT_MIN_PITCH and abs(dy) < TILT_MAX_YAW,
             }[step]
             if not ok:
                 return res(False, INSTRUCTIONS[step])

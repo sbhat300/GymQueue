@@ -89,9 +89,9 @@ def test_baseline_is_personal():
     for _ in range(SAMPLES_PER_POSE):
         eng.next = [face(yaw=0.15)]
         sess.add_frame(IMG, eng)
-    eng.next = [face(yaw=0.30)]   # only 0.15 more than their neutral
+    eng.next = [face(yaw=0.24)]   # only 0.09 more than their neutral
     assert not sess.add_frame(IMG, eng).accepted
-    eng.next = [face(yaw=0.40)]
+    eng.next = [face(yaw=0.30)]
     assert sess.add_frame(IMG, eng).accepted
 
 

@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 .esp32_sim.pid
 .esp32_sim.log
+presage/build/
