@@ -102,7 +102,7 @@ class FaceTracker:
     VOTE_DECAY = 0.85
     UNKNOWN_VOTE = 0.3
     IOU_MIN = 0.25
-    TRACK_TTL_S = 1.5
+    TRACK_TTL_S = 4.0
     EMB_DECAY = 0.85        # older frames fade out of the average
     SWAP_SIM = 0.2          # new face looks nothing like the track -> someone else stepped in
     FULL_QUALITY_PX = 112   # faces this wide or larger count fully in the average

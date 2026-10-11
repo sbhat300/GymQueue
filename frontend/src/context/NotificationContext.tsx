@@ -113,7 +113,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const data = event.data as { machine_name?: string };
         pushToast({
           title: "It's your turn!",
-          body: `${data.machine_name ?? "A machine"} is ready for you. Head over and turn your head left and right: the camera checks you in automatically.`,
+          body: `${data.machine_name ?? "A machine"} is ready for you. Head over - the camera checks you in automatically.`,
           variant: "success",
         });
         break;

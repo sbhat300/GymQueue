@@ -13,8 +13,8 @@ export function CheckInPanel({ entry }: { entry: QueueEntry }) {
       </p>
       <p className="muted" style={{ marginTop: -4 }}>
         {isResume
-          ? "Step back into the camera's view and turn your head left and right - we'll resume your turn automatically."
-          : "Step up to the machine and turn your head left and right - the camera checks you in automatically."}
+          ? "Step back into the camera's view - we'll resume your turn automatically."
+          : "Step up to the machine - the camera checks you in automatically."}
       </p>
     </div>
   );
