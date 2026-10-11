@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { addSet, deleteSet, editSet, getTodayWorkout, listExercises } from "../api/workouts";
 import { ApiError } from "../api/client";
-import { useNotifications } from "../context/NotificationContext";
-import type { Exercise, WorkoutEntry, WsEvent } from "../types";
-
-const LIVE_TIMEOUT_MS = 20_000; // hide the live counter if the camera goes quiet
-
-interface LiveCount {
-  machineName: string;
-  exercise: string;
-  reps: number;
-}
+import { useLiveRepCount } from "../hooks/useLiveRepCount";
+import type { Exercise, WorkoutEntry } from "../types";
 
 function exerciseLabel(exercises: Exercise[], key: string): string {
   return exercises.find((e) => e.key === key)?.label ?? key.replace("_", " ");
@@ -23,12 +15,10 @@ function formatDay(day: string): string {
 }
 
 export function WorkoutPage() {
-  const { addEventListener } = useNotifications();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [day, setDay] = useState<string | null>(null);
   const [entries, setEntries] = useState<WorkoutEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState<LiveCount | null>(null);
 
   const [exercise, setExercise] = useState("");
   const [reps, setReps] = useState("");
@@ -59,25 +49,7 @@ export function WorkoutPage() {
     refresh();
   }, [refresh]);
 
-  // live rep count from the machine camera; the finished set arrives as "workout_logged"
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = addEventListener((event: WsEvent) => {
-      if (event.type === "rep_counted") {
-        const data = event.data as { machine_name?: string; exercise?: string; reps?: number };
-        setLive({ machineName: data.machine_name ?? "Machine", exercise: data.exercise ?? "", reps: data.reps ?? 0 });
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => setLive(null), LIVE_TIMEOUT_MS);
-      } else if (event.type === "workout_logged") {
-        setLive(null);
-        refresh();
-      }
-    });
-    return () => {
-      unsubscribe();
-      if (timer) clearTimeout(timer);
-    };
-  }, [addEventListener, refresh]);
+  const live = useLiveRepCount(refresh);
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();

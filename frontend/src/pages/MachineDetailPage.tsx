@@ -15,6 +15,7 @@ import { JoinRequestModal } from "../components/JoinRequestModal";
 import { BusyTimesChart } from "../components/BusyTimesChart";
 import { formatCameraPeople, formatWaitRange } from "../utils/format";
 import { useCountdown } from "../hooks/useCountdown";
+import { useLiveRepCount } from "../hooks/useLiveRepCount";
 
 const STATS_REFRESH_MS = 30_000;
 const CAMERA_POLL_MS = 1_000; // while active here, so the off-camera countdown stays live
@@ -54,6 +55,10 @@ export function MachineDetailPage() {
 
   const myEntry = entries?.find((e) => e.users.some((u) => u.id === user?.id)) ?? null;
   const isActiveHere = myEntry?.state === "active" || myEntry?.state === "resting";
+
+  // "rep_counted" is pushed to this user's socket alone, so this only ever shows your own reps
+  const live = useLiveRepCount(refresh);
+  const liveHere = live && live.machineId === machineId ? live : null;
 
   useEffect(() => {
     // poll fast while you're actually on the machine, so the off-camera countdown
@@ -131,6 +136,18 @@ export function MachineDetailPage() {
       </Link>
       <h1>{machine?.name ?? "Machine"}</h1>
       {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
+
+      {liveHere && (
+        <div className="live-reps" aria-live="polite">
+          <div className="live-reps-dot" aria-hidden="true" />
+          <div>
+            <div className="live-reps-label">Counting live</div>
+            <div className="live-reps-count">
+              {liveHere.reps} <span>{liveHere.reps === 1 ? "rep" : "reps"}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {stats && <RightNow stats={stats} myEntry={myEntry} />}
 
